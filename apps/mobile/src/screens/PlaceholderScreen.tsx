@@ -1,6 +1,8 @@
 import { StyleSheet, Text, View } from 'react-native';
 
 import { PlaceholderPitch } from '../components/PlaceholderPitch';
+import { PLACEHOLDER_LINEUP } from '../components/placeholderLineup';
+import { TokenLayer } from '../components/TokenLayer';
 import { colors } from '../theme/colors';
 
 export function PlaceholderScreen() {
@@ -10,7 +12,9 @@ export function PlaceholderScreen() {
         <Text style={styles.title}>TOUCHLINE</Text>
         <Text style={styles.label}>SPRINT 0 — FOUNDATION</Text>
       </View>
-      <PlaceholderPitch />
+      <PlaceholderPitch>
+        <TokenLayer tokens={PLACEHOLDER_LINEUP} />
+      </PlaceholderPitch>
     </View>
   );
 }
