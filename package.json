@@ -1,0 +1,38 @@
+{
+  "name": "touchline",
+  "version": "0.0.0",
+  "private": true,
+  "description": "TOUCHLINE — mobile-first 11v11 tactical football simulation for iOS and Android.",
+  "type": "module",
+  "packageManager": "pnpm@10.33.4",
+  "engines": {
+    "node": ">=20.19.4"
+  },
+  "scripts": {
+    "dev": "pnpm --filter @touchline/mobile start",
+    "ios": "pnpm --filter @touchline/mobile ios",
+    "android": "pnpm --filter @touchline/mobile android",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "pnpm -r typecheck && tsc --noEmit -p tests",
+    "lint": "eslint .",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "validate": "pnpm typecheck && pnpm test && pnpm lint && pnpm format:check"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@touchline/match-engine": "workspace:*",
+    "@touchline/physics": "workspace:*",
+    "@touchline/planning": "workspace:*",
+    "@touchline/renderer": "workspace:*",
+    "@touchline/shared": "workspace:*",
+    "@types/node": "^26.6.5",
+    "eslint": "^10.13.0",
+    "eslint-config-prettier": "^10.1.8",
+    "prettier": "^3.9.10",
+    "typescript": "~6.0.3",
+    "typescript-eslint": "^8.72.0",
+    "vitest": "^5.0.5"
+  }
+}

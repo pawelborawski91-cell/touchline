@@ -1,0 +1,21 @@
+{
+  "name": "@touchline/planning",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Player commands and trajectories produced during the TOUCHLINE planning phase.",
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit -p ."
+  },
+  "dependencies": {
+    "@touchline/shared": "workspace:*"
+  },
+  "devDependencies": {
+    "typescript": "~6.0.3"
+  }
+}

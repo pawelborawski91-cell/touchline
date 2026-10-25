@@ -1,0 +1,7 @@
+{
+  "extends": ["../../tsconfig.base.json", "expo/tsconfig.base"],
+  "compilerOptions": {
+    "allowJs": false
+  },
+  "include": ["index.ts", "App.tsx", "src"]
+}
