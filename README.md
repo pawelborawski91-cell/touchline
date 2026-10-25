@@ -5,8 +5,15 @@ Both sides plan at the same time, then the plans play out in continuous simulati
 105 × 68 m pitch. The match engine is plain TypeScript and does not depend on the mobile UI.
 Rendering uses React Native Skia.
 
-**Status: Sprint 0, the project foundation.** It contains the monorepo, tooling, shared types and a
-placeholder screen. There is no gameplay yet.
+**Status: Sprint 1, the pitch renderer.** The app opens a landscape match view: a 105 × 68 m Skia
+pitch with both 4-3-3 line-ups (NORTH CITY vs SOUTH UNITED) and the ball, under a touch camera.
+There is no simulation or gameplay yet; score and clock are static placeholders.
+
+Camera gestures on the match view:
+
+- **Drag** with one finger to pan (with momentum).
+- **Pinch** to zoom about your fingers; move them while pinching to pan as well.
+- **Double-tap** to zoom in on that spot; double-tap again to return to the full pitch.
 
 - [Game design](docs/GDD.md)
 - [Architecture & package boundaries](docs/ARCHITECTURE.md)

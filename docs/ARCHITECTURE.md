@@ -26,14 +26,14 @@ consume the source.
 
 ## Package responsibilities
 
-| Package                   | Responsibility                                                                  | Status (Sprint 0)                         |
-| ------------------------- | ------------------------------------------------------------------------------- | ----------------------------------------- |
-| `@touchline/shared`       | Common domain types (`Vector2`, `PlayerState`, `MatchConfig`, …) and utilities. | Types, `DEFAULT_MATCH_CONFIG`, tick math. |
-| `@touchline/physics`      | Movement integration, collisions, ball physics. No rendering knowledge.         | Empty.                                    |
-| `@touchline/match-engine` | Authoritative fixed-timestep simulation; produces snapshots.                    | Empty.                                    |
-| `@touchline/planning`     | Building and validating player commands and trajectories during planning.       | Empty.                                    |
-| `@touchline/renderer`     | Skia rendering of engine snapshots.                                             | Empty.                                    |
-| `@touchline/mobile`       | Screens, input, UI state, persistence; wires packages together.                 | Placeholder screen with Skia pitch.       |
+| Package                   | Responsibility                                                               | Status (Sprint 1)                                                      |
+| ------------------------- | ---------------------------------------------------------------------------- | ---------------------------------------------------------------------- |
+| `@touchline/shared`       | Common domain types (`Vector2`, `PlayerState`, `MatchSnapshot`, …) and data. | Types, field constants, `DEFAULT_MATCH_CONFIG`, initial 4-3-3 fixture. |
+| `@touchline/physics`      | Movement integration, collisions, ball physics. No rendering knowledge.      | Empty.                                                                 |
+| `@touchline/match-engine` | Authoritative fixed-timestep simulation; produces snapshots.                 | Empty.                                                                 |
+| `@touchline/planning`     | Building and validating player commands and trajectories during planning.    | Empty.                                                                 |
+| `@touchline/renderer`     | Skia rendering of snapshots, camera, world↔screen transforms.                | Pitch, goals, player and ball markers, pan/pinch camera (see below).   |
+| `@touchline/mobile`       | Screens, input, UI state, persistence; wires packages together.              | Match screen: info bar, `MatchView`, status label.                     |
 
 ## Dependency boundaries
 
@@ -48,8 +48,10 @@ physics       ──► shared
 shared        ──► (nothing)
 ```
 
-Sprint 0 declares only the edges in use or committed to: `mobile → shared`, `physics → shared`,
-`match-engine → shared, physics`, `planning → shared`, `renderer → shared`.
+Declared today: `mobile → shared, renderer`, `physics → shared`, `match-engine → shared, physics`,
+`planning → shared`, `renderer → shared`. The renderer additionally declares Skia, React, React
+Native, Reanimated and Gesture Handler as **peer** dependencies (dev copies pinned to the app's
+exact versions so pnpm links a single install).
 
 Rules:
 
@@ -59,9 +61,11 @@ Rules:
 3. `shared` depends on nothing in the workspace.
 4. `planning` will own player commands and trajectories; it depends only on `shared`. Command
    _types_ that the engine consumes belong in `shared`, so the engine never imports `planning`.
-5. `renderer` will contain Skia rendering logic. It reads engine snapshots and never mutates them.
-6. Zustand stores (in `apps/mobile/src/stores`) hold UI state only — selection, panels, camera —
-   never authoritative simulation state.
+5. `renderer` contains the Skia rendering logic. It reads `MatchSnapshot`s and never mutates them,
+   and it may depend only on `shared` (never on the engine, physics or planning).
+6. Zustand stores (in `apps/mobile/src/stores`) hold UI state only — selection, panels —
+   never authoritative simulation state. Camera state is per-frame view state and lives in
+   Reanimated shared values inside the renderer, not in Zustand or React state.
 7. No `any`; public APIs use explicit interfaces.
 8. No circular dependencies.
 
@@ -70,10 +74,42 @@ Rules:
 - **pnpm isolated installs** — a package can only resolve what its own `package.json` declares, so
   an undeclared dependency fails to resolve in `tsc`, Vitest and Metro.
 - **ESLint `no-restricted-imports`** (`eslint.config.mjs`) — blocks React/React Native/Expo/Skia/
-  Zustand and disallowed workspace packages from `shared`, `physics` and `match-engine`.
+  Zustand and disallowed workspace packages from `shared`, `physics` and `match-engine`; blocks
+  Zustand and engine/physics/planning/app imports from the whole renderer; and blocks platform
+  imports from the renderer's pure core (`core.ts`, `camera/cameraTransforms.ts`, `coordinates/`,
+  `types/`).
 - **`tests/workspace.test.ts`** — asserts each manifest only declares allowed workspace edges, that
   `shared`/`physics`/`match-engine` declare no UI/platform dependencies, and that the workspace
   graph is acyclic.
+
+## Renderer
+
+```
+packages/renderer/
+├── assets/fonts/          Barlow Semi Condensed Bold (OFL) for shirt numbers
+└── src/
+    ├── core.ts            platform-free entry (`@touchline/renderer/core`)
+    ├── index.ts           full entry: core + Skia components + camera hook
+    ├── types/renderer.ts  WorldPoint, ScreenPoint, Viewport, CameraState, ViewTransform, …
+    ├── coordinates/       worldToScreen, screenToWorld (+ length conversions)
+    ├── camera/
+    │   ├── cameraTransforms.ts  fit scale, view transform, zoom/centre clamping, pan, focal zoom
+    │   └── CameraController.ts  useCameraController: shared values + pan/pinch/double-tap
+    ├── components/        MatchView, Pitch, Goal, PlayerMarker, BallMarker
+    └── theme/palette.ts   pitch colours and team marker kits
+```
+
+- **World space** is metres: x along the 105 m length, y across the 68 m width, origin at the
+  top-left corner flag. Player, ball and marking geometry never leave world space.
+- **View transform**: `screen = world × scale + translate`, where
+  `scale = fitScale(viewport, bounds) × zoom` and the translate puts the camera centre at the
+  viewport centre. `bounds` is the pitch plus a 4 m surround (room for goals and markers).
+- `MatchView` draws one Skia `Group` whose transform is the view transform, so the pitch, goals and
+  markers are all authored in metres. Markers counter-scale by `1 / scale` so they stay a constant
+  size on screen (radius 13 px; ball 5.5 px). Line widths are `max(1.5 px, 0.12 m)`.
+- The camera never touches match data: the snapshot flows in as a prop and is only read.
+- All camera maths are pure functions marked `'worklet'`, so the same code runs on the UI thread in
+  gesture callbacks and in Node under Vitest.
 
 ## Simulation / rendering separation
 

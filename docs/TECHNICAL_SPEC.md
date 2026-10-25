@@ -25,6 +25,22 @@
 
 Defaults live in `DEFAULT_MATCH_CONFIG` (`@touchline/shared`) and are covered by unit tests.
 
+## Camera and markers (Sprint 1)
+
+| Parameter     | Value                                                                   |
+| ------------- | ----------------------------------------------------------------------- |
+| Camera bounds | Pitch plus 4 m on every side (`PITCH_BOUNDS`, −4…109 × −4…72 m)         |
+| Zoom range    | 1× (whole bounds fit the viewport) to 4×                                |
+| Pan           | One finger, 1:1 with the finger, momentum (decay) clamped to the bounds |
+| Pinch         | Zooms about the focal point; moving the fingers pans at the same time   |
+| Double tap    | Zooms 2.5× towards the tap, or animates back to the full-pitch view     |
+| Player marker | 13 px radius in screen space, shirt number, facing pointer, shadow      |
+| Ball          | 5.5 px radius in screen space, shadow                                   |
+| Line width    | `max(1.5 px, 0.12 m)` on screen                                         |
+
+Camera state lives in Reanimated shared values; gestures run as UI-thread worklets and do not
+cause React re-renders.
+
 ## Platforms
 
 - iOS and Android, landscape only (locked in `app.json`, `ios.requireFullScreen` so iPad honours

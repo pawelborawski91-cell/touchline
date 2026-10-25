@@ -26,6 +26,11 @@ const UI_AND_PLATFORM_IMPORTS = [
 const workspaceImports = (packages, message) =>
   packages.map((name) => ({ group: [name, `${name}/*`], message }));
 
+const RENDERER_WORKSPACE_IMPORTS = workspaceImports(
+  ['@touchline/match-engine', '@touchline/physics', '@touchline/planning', '@touchline/mobile'],
+  '@touchline/renderer consumes snapshots typed in @touchline/shared and may only depend on it.',
+);
+
 export default defineConfig(
   {
     ignores: [
@@ -98,6 +103,38 @@ export default defineConfig(
             ),
           ],
         },
+      ],
+    },
+  },
+  {
+    files: ['packages/renderer/**/*.{ts,tsx}'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              group: ['zustand', 'zustand/*'],
+              message:
+                'The renderer is stateless with respect to the match; UI state lives in the app.',
+            },
+            ...RENDERER_WORKSPACE_IMPORTS,
+          ],
+        },
+      ],
+    },
+  },
+  {
+    files: [
+      'packages/renderer/src/core.ts',
+      'packages/renderer/src/camera/cameraTransforms.ts',
+      'packages/renderer/src/coordinates/**/*.ts',
+      'packages/renderer/src/types/**/*.ts',
+    ],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        { patterns: [...UI_AND_PLATFORM_IMPORTS, ...RENDERER_WORKSPACE_IMPORTS] },
       ],
     },
   },

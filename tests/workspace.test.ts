@@ -70,7 +70,7 @@ describe('workspace', () => {
       import('@touchline/physics'),
       import('@touchline/match-engine'),
       import('@touchline/planning'),
-      import('@touchline/renderer'),
+      import('@touchline/renderer/core'),
     ]);
     for (const mod of modules) {
       expect(mod).toBeTypeOf('object');
