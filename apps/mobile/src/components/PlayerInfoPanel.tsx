@@ -17,7 +17,12 @@ function describeStatus(mode: PlanningMode, command: PlayerCommand | undefined, 
   if (mode === 'drawing_path') return { label: 'DRAWING', tone: colors.path };
   if (mode === 'previewing_path')
     return { label: editing ? 'EDITING' : 'DRAFT', tone: colors.path };
-  if (command) return { label: command.status.toUpperCase(), tone: colors.accent };
+  if (command) {
+    return {
+      label: `${command.status.toUpperCase()} · ${command.movementMode.toUpperCase()}`,
+      tone: colors.accent,
+    };
+  }
   return { label: 'NO COMMAND', tone: colors.textMuted };
 }
 

@@ -43,6 +43,11 @@ interface MatchViewProps {
   renderUnderlay?: (context: WorldLayerContext) => ReactNode;
   /** World-space content drawn above the markers and ball. */
   renderOverlay?: (context: WorldLayerContext) => ReactNode;
+  /**
+   * Optional live `[x, y, facing]` per player, in `snapshot.players` order, written by a
+   * simulation loop. Markers follow it on the UI thread without React re-renders.
+   */
+  playerFrame?: SharedValue<readonly number[]>;
   style?: StyleProp<ViewStyle>;
 }
 
@@ -53,6 +58,7 @@ export function MatchView({
   gesture,
   renderUnderlay,
   renderOverlay,
+  playerFrame,
   style,
 }: MatchViewProps) {
   const [hasLayout, setHasLayout] = useState(false);
@@ -78,8 +84,12 @@ export function MatchView({
   );
 
   // Painter's order so markers lower on screen overlap those above; copies, never mutates.
+  // The order is fixed per snapshot, so it is not re-sorted while players move via the frame.
   const players = useMemo(
-    () => [...snapshot.players].sort((a, b) => a.position.y - b.position.y),
+    () =>
+      snapshot.players
+        .map((player, index) => ({ player, index }))
+        .sort((a, b) => a.player.position.y - b.player.position.y),
     [snapshot.players],
   );
 
@@ -93,7 +103,7 @@ export function MatchView({
               <Goal end="left" lineWidth={lineWidth} />
               <Goal end="right" lineWidth={lineWidth} />
               {renderUnderlay?.(layerContext)}
-              {players.map((player) => {
+              {players.map(({ player, index }) => {
                 const side = getTeamSide(snapshot, player.teamId);
                 if (!side) return null;
                 return (
@@ -103,6 +113,8 @@ export function MatchView({
                     kit={TEAM_KITS[side]}
                     font={font}
                     inverseScale={inverseScale}
+                    frame={playerFrame}
+                    frameIndex={index}
                   />
                 );
               })}

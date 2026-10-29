@@ -7,9 +7,13 @@ import { usePlanningStore } from '../stores/planningStore';
 /**
  * Tap handling for selection. Runs on the JS thread: it reads the current camera transform,
  * hit-tests markers in screen space (closest wins), and feeds the planning reducer, which
- * ignores taps while a path is being drawn or previewed.
+ * ignores taps while a path is being drawn or previewed. Disabled outside the planning phase.
  */
-export function usePlayerSelection(snapshot: MatchSnapshot, camera: CameraController) {
+export function usePlayerSelection(
+  snapshot: MatchSnapshot,
+  camera: CameraController,
+  enabled: boolean,
+) {
   const dispatch = usePlanningStore((state) => state.dispatch);
   const targets = useMemo<HitTarget[]>(
     () => snapshot.players.map((player) => ({ id: player.id, position: player.position })),
@@ -18,9 +22,10 @@ export function usePlayerSelection(snapshot: MatchSnapshot, camera: CameraContro
 
   return useCallback(
     (x: number, y: number) => {
+      if (!enabled) return;
       const playerId = findMarkerAt(targets, { x, y }, camera.transform.value);
       dispatch(playerId ? { type: 'tapPlayer', playerId } : { type: 'tapEmpty' });
     },
-    [camera.transform, dispatch, targets],
+    [camera.transform, dispatch, enabled, targets],
   );
 }

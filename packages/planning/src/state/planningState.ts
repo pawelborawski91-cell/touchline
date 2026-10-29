@@ -173,6 +173,7 @@ export function reducePlanning(state: PlanningUiState, event: PlanningEvent): Pl
         ...withDraftPath(
           state,
           command.path.map((point) => ({ ...point })),
+          command.movementMode,
         ),
         planningMode: 'previewing_path',
         editingCommandId: command.id,

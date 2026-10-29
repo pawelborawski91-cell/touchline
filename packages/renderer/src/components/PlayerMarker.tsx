@@ -27,16 +27,39 @@ interface PlayerMarkerProps {
   font: SkFont | null;
   /** 1 / camera scale; cancels the world zoom so the marker keeps its screen size. */
   inverseScale: SharedValue<number>;
+  /** Live `[x, y, facing]` triples; when it has this player's slot it overrides the snapshot. */
+  frame?: SharedValue<readonly number[]>;
+  /** Index of this player in `frame` (its index in the snapshot's player list). */
+  frameIndex?: number;
 }
 
 /** Circular player marker anchored at the player's world position. */
-export function PlayerMarker({ player, kit, font, inverseScale }: PlayerMarkerProps) {
+export function PlayerMarker({
+  player,
+  kit,
+  font,
+  inverseScale,
+  frame,
+  frameIndex = -1,
+}: PlayerMarkerProps) {
   const { x, y } = player.position;
-  const transform = useDerivedValue(() => [
-    { translateX: x },
-    { translateY: y },
-    { scale: inverseScale.value },
-  ]);
+  const { facing } = player;
+  const transform = useDerivedValue(() => {
+    const values = frame?.value;
+    const base = frameIndex * 3;
+    const live = values !== undefined && frameIndex >= 0 && values.length > base + 2;
+    return [
+      { translateX: live ? values[base]! : x },
+      { translateY: live ? values[base + 1]! : y },
+      { scale: inverseScale.value },
+    ];
+  });
+  const rotation = useDerivedValue(() => {
+    const values = frame?.value;
+    const base = frameIndex * 3;
+    const live = values !== undefined && frameIndex >= 0 && values.length > base + 2;
+    return [{ rotate: live ? values[base + 2]! : facing }];
+  });
 
   const indicatorPath = useMemo(buildIndicatorPath, []);
   const label = String(player.shirtNumber);
@@ -53,7 +76,7 @@ export function PlayerMarker({ player, kit, font, inverseScale }: PlayerMarkerPr
       <Circle cx={1.5} cy={2.5} r={PLAYER_MARKER_RADIUS} color={palette.shadow}>
         <BlurMask blur={2.5} style="normal" />
       </Circle>
-      <Group transform={[{ rotate: player.facing }]}>
+      <Group transform={rotation}>
         <Path path={indicatorPath} color={kit.indicator} />
       </Group>
       <Circle cx={0} cy={0} r={PLAYER_MARKER_RADIUS} color={fill} />
