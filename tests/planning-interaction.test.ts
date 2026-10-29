@@ -193,6 +193,7 @@ describe('select → draw → confirm → edit flow', () => {
       type: 'move' as const,
       status: 'queued' as const,
       path: STROKE,
+      movementMode: 'run' as const,
       createdAtTick: 0,
       priority: 50,
       interruptible: true,

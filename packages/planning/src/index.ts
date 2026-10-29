@@ -3,28 +3,48 @@
  *
  * Pure TypeScript; may depend only on @touchline/shared. All paths are world metres.
  */
-export type { CommandStatus, CommandType, PlayerCommand } from './commands/PlayerCommand';
+// Command model and manager live in @touchline/shared so the match engine can execute them
+// without depending on planning; re-exported here for planning consumers.
+export type {
+  CommandAction,
+  CommandBook,
+  CommandStatus,
+  CommandType,
+  CreateDraftResult,
+  DraftOptions,
+  MoveCommandInput,
+  MovementMode,
+  PlayerCommand,
+} from '@touchline/shared';
 export {
-  DEFAULT_COMMAND_PRIORITY,
-  isLiveMovementCommand,
-  LIVE_MOVEMENT_STATUSES,
-} from './commands/PlayerCommand';
-export type { MoveCommandInput } from './commands/CommandFactory';
-export { createMoveCommand } from './commands/CommandFactory';
-export type { CommandAction, CommandBook, CreateDraftResult } from './commands/CommandManager';
-export {
+  activateCommand,
+  activateLiveCommands,
   cancelCommand,
   commandReducer,
+  completeCommand,
   confirmDraft,
   createCommandBook,
   createDraft,
+  createMoveCommand,
+  DEFAULT_COMMAND_PRIORITY,
+  DEFAULT_MOVEMENT_MODE,
+  getActiveMovementCommand,
   getCommand,
   getLiveMovementCommands,
   getMovementCommand,
   getPlayerCommands,
+  isActiveMovementCommand,
+  isFinishedCommand,
+  isLiveMovementCommand,
+  LIVE_MOVEMENT_STATUSES,
+  MOVEMENT_MODES,
+  pauseActiveCommands,
+  pauseCommand,
+  pruneFinishedCommands,
   removeCommand,
   replaceMovementCommand,
-} from './commands/CommandManager';
+  resumeCommand,
+} from '@touchline/shared';
 
 export type { SamplePathOptions } from './path/PathSampler';
 export {

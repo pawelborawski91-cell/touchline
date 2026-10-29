@@ -1,7 +1,10 @@
-import type { Vector2 } from '@touchline/shared';
-
-import { createMoveCommand } from '../commands/CommandFactory';
-import type { PlayerCommand } from '../commands/PlayerCommand';
+import {
+  createMoveCommand,
+  DEFAULT_MOVEMENT_MODE,
+  type MovementMode,
+  type PlayerCommand,
+  type Vector2,
+} from '@touchline/shared';
 import { removeLastPoint, samplePath } from '../path/PathSampler';
 import { describeRejection, validatePath } from '../path/PathValidator';
 
@@ -45,22 +48,27 @@ export type PlanningEvent =
   | { type: 'cancelDraft' }
   | { type: 'confirmed' }
   | { type: 'editCommand'; command: PlayerCommand }
+  | { type: 'setMovementMode'; mode: MovementMode }
   | { type: 'deselect' };
 
-function previewFor(playerId: string, path: Vector2[]): PlayerCommand {
-  return createMoveCommand({ id: PREVIEW_COMMAND_ID, playerId, path });
+function previewFor(playerId: string, path: Vector2[], movementMode: MovementMode): PlayerCommand {
+  return createMoveCommand({ id: PREVIEW_COMMAND_ID, playerId, path, movementMode });
 }
 
 function selectState(playerId: string): PlanningUiState {
   return { ...INITIAL_PLANNING_STATE, selectedPlayerId: playerId, planningMode: 'player_selected' };
 }
 
-function withDraftPath(state: PlanningUiState, path: Vector2[]): PlanningUiState {
+function withDraftPath(
+  state: PlanningUiState,
+  path: Vector2[],
+  movementMode: MovementMode = state.activeCommandPreview?.movementMode ?? DEFAULT_MOVEMENT_MODE,
+): PlanningUiState {
   if (!state.selectedPlayerId) return state;
   return {
     ...state,
     currentDraftPath: path,
-    activeCommandPreview: previewFor(state.selectedPlayerId, path),
+    activeCommandPreview: previewFor(state.selectedPlayerId, path, movementMode),
     notice: null,
   };
 }
@@ -151,6 +159,10 @@ export function reducePlanning(state: PlanningUiState, event: PlanningEvent): Pl
     case 'confirmed':
       if (state.planningMode !== 'previewing_path' || !state.selectedPlayerId) return state;
       return selectState(state.selectedPlayerId);
+
+    case 'setMovementMode':
+      if (state.planningMode !== 'previewing_path') return state;
+      return withDraftPath(state, state.currentDraftPath, event.mode);
 
     case 'editCommand': {
       const { command } = event;

@@ -101,4 +101,30 @@ describe('initial match fixture', () => {
     expect(b.players[0]?.position.x).not.toBe(999);
     expect(FORMATION_4_3_3[0]?.position.x).not.toBe(999);
   });
+
+  it('gives every player movement attributes inside the documented ranges', () => {
+    for (const { movement } of match.players) {
+      expect(movement.maxSpeed).toBeGreaterThanOrEqual(5.5);
+      expect(movement.maxSpeed).toBeLessThanOrEqual(8.5);
+      expect(movement.acceleration).toBeGreaterThanOrEqual(2);
+      expect(movement.acceleration).toBeLessThanOrEqual(4);
+      expect(movement.deceleration).toBeGreaterThanOrEqual(3);
+      expect(movement.deceleration).toBeLessThanOrEqual(6);
+      expect(movement.agility).toBeGreaterThanOrEqual(0.5);
+      expect(movement.agility).toBeLessThanOrEqual(1);
+      expect(movement.turningSpeed).toBeGreaterThanOrEqual(180);
+      expect(movement.turningSpeed).toBeLessThanOrEqual(360);
+      expect(movement.stamina).toBeGreaterThanOrEqual(0);
+      expect(movement.stamina).toBeLessThanOrEqual(1);
+    }
+  });
+
+  it('derives movement attributes deterministically, with wingers faster than goalkeepers', () => {
+    expect(createInitialMatch().players.map((p) => p.movement)).toEqual(
+      match.players.map((p) => p.movement),
+    );
+    const speedOf = (role: FormationRole) =>
+      homePlayers.find((p) => p.role === role)!.movement.maxSpeed;
+    expect(speedOf('RW')).toBeGreaterThan(speedOf('GK'));
+  });
 });
