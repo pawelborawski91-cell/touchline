@@ -1,9 +1,8 @@
 import {
-  applyPlanningAction,
+  commitPlans,
   createSimulationState,
-  nextTurn,
-  startExecution,
-  stepTurn,
+  planMovement,
+  stepExecution,
   type SimulationState,
 } from '@touchline/match-engine';
 import { getSpeedCap } from '@touchline/physics';
@@ -26,12 +25,9 @@ function execute(playerId: string, waypoints: Vector2[], mode: MovementMode): Tr
   let state = createSimulationState(createInitialMatch());
   const player = state.players.find((p) => p.id === playerId)!;
   const cap = getSpeedCap(player.movement, mode, player.staminaCurrent);
-  state = applyPlanningAction(state, {
-    type: 'replaceMovement',
-    playerId,
-    path: [player.position, ...waypoints],
+  state = planMovement(state, playerId, [player.position, ...waypoints], {
     movementMode: mode,
-  });
+  }).state;
   const trace: Trace = {
     positions: [player.position],
     speeds: [0],
@@ -41,9 +37,9 @@ function execute(playerId: string, waypoints: Vector2[], mode: MovementMode): Tr
     cap,
   };
   for (let turn = 0; turn < 3 && trace.completedAtTick === null; turn += 1) {
-    state = startExecution(state);
-    while (state.phase === 'executing') {
-      state = stepTurn(state);
+    state = commitPlans(state);
+    while (state.phase === 'execution') {
+      state = stepExecution(state);
       const p = state.players.find((x) => x.id === playerId)!;
       trace.positions.push(p.position);
       trace.speeds.push(Math.hypot(p.velocity.x, p.velocity.y));
@@ -52,7 +48,6 @@ function execute(playerId: string, waypoints: Vector2[], mode: MovementMode): Tr
         trace.completedAtTick = state.tick;
       }
     }
-    state = nextTurn(state);
   }
   trace.final = state;
   return trace;

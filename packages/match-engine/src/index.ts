@@ -12,6 +12,14 @@ export {
   type PlayerDebugInfo,
 } from './MatchEngine';
 export {
+  assertPhase,
+  assertPhaseTransition,
+  canTransitionPhase,
+  MatchStateError,
+  PHASE_TRANSITIONS,
+  PhaseTransitionError,
+} from './MatchPhaseMachine';
+export {
   DEFAULT_CLOCK_CONFIG,
   SimulationClock,
   type SimulationClockConfig,
@@ -20,18 +28,31 @@ export { interpolateSnapshot, toMatchSnapshot, writeInterpolatedFrame } from './
 export {
   createSimulationState,
   DEFAULT_SIMULATION_CONFIG,
+  DEFAULT_TURN_CONFIG,
   ticksPerTurn,
-  type FollowerEntry,
+  type PathExecutionState,
   type SimulationConfig,
   type SimulationState,
-  type TurnPhase,
+  type TeamCommitState,
+  type TurnConfig,
 } from './SimulationState';
-export { stepPlayers } from './SimulationStep';
+export { createPathExecutionState, stepPlayers } from './SimulationStep';
 export {
-  applyPlanningAction,
-  endTurn,
-  nextTurn,
+  callStoppage,
+  cancelPlannedCommand,
+  commitPlans,
+  commitTeam,
+  endStoppage,
+  finishMatch,
+  getTurnSnapshot,
+  planMovement,
+  PlanValidationError,
+  replaceCommand,
   simulateTurn,
-  startExecution,
-  stepTurn,
+  stepExecution,
+  validatePlans,
+  type PlanIssue,
+  type PlanMovementOptions,
+  type PlanMovementResult,
+  type TurnSnapshot,
 } from './TurnController';

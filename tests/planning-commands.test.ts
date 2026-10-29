@@ -38,6 +38,8 @@ describe('createMoveCommand', () => {
       priority: DEFAULT_COMMAND_PRIORITY,
       interruptible: true,
       movementMode: 'run',
+      startedTurn: null,
+      endedTurn: null,
     });
     expect(DEFAULT_COMMAND_PRIORITY).toBe(50);
   });
@@ -79,13 +81,16 @@ describe('CommandManager', () => {
     expect(confirmDraft(confirmed, 'missing')).toBe(confirmed);
   });
 
-  it('replaces the existing queued movement command on confirm', () => {
+  it('replaces the existing queued movement command on confirm (old one cancelled)', () => {
     const first = replaceMovementCommand(createCommandBook(), 'p1', PATH_A);
     const second = replaceMovementCommand(first.book, 'p1', PATH_B);
-    const commands = getPlayerCommands(second.book, 'p1');
-    expect(commands).toHaveLength(1);
-    expect(commands[0]).toMatchObject({ id: second.command.id, status: 'queued', path: PATH_B });
-    expect(getCommand(second.book, first.command.id)).toBeUndefined();
+    expect(getMovementCommand(second.book, 'p1')).toMatchObject({
+      id: second.command.id,
+      status: 'queued',
+      path: PATH_B,
+    });
+    expect(getCommand(second.book, first.command.id)?.status).toBe('cancelled');
+    expect(getLiveMovementCommands(second.book)).toHaveLength(1);
   });
 
   it('only replaces the confirming player’s command', () => {
@@ -106,7 +111,8 @@ describe('CommandManager', () => {
     expect(getMovementCommand(draft.book, 'p1')?.id).toBe(queued.command.id);
     const confirmed = confirmDraft(draft.book, draft.command.id);
     expect(getMovementCommand(confirmed, 'p1')?.id).toBe(draft.command.id);
-    expect(getPlayerCommands(confirmed, 'p1')).toHaveLength(1);
+    expect(getCommand(confirmed, queued.command.id)?.status).toBe('cancelled');
+    expect(getLiveMovementCommands(confirmed)).toHaveLength(1);
   });
 
   it('cancels a command, freeing the player’s movement slot', () => {
@@ -152,6 +158,6 @@ describe('CommandManager', () => {
     book = commandReducer(book, { type: 'cancel', commandId: replacement.id });
     expect(getMovementCommand(book, 'p1')).toBeUndefined();
     book = commandReducer(book, { type: 'remove', commandId: replacement.id });
-    expect(book.commands).toEqual([]);
+    expect(book.commands.map((c) => c.status)).toEqual(['cancelled']);
   });
 });

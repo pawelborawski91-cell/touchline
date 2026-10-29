@@ -15,13 +15,16 @@ interface MatchInfoBarProps {
   snapshot: MatchSnapshot;
   /** Live clock override while the simulation runs; defaults to the snapshot's clock. */
   clockSeconds?: number;
+  /** Optional element shown at the left end of the bar. */
+  leading?: ReactNode;
   /** Optional element shown at the right end of the bar. */
   accessory?: ReactNode;
 }
 
-export function MatchInfoBar({ snapshot, clockSeconds, accessory }: MatchInfoBarProps) {
+export function MatchInfoBar({ snapshot, clockSeconds, leading, accessory }: MatchInfoBarProps) {
   return (
     <View style={styles.bar}>
+      {leading && <View style={styles.leading}>{leading}</View>}
       <View style={[styles.team, styles.homeTeam]}>
         <View style={[styles.swatch, { backgroundColor: TEAM_KITS.home.fill }]} />
         <Text style={styles.teamName} numberOfLines={1}>
@@ -46,6 +49,14 @@ export function MatchInfoBar({ snapshot, clockSeconds, accessory }: MatchInfoBar
 }
 
 const styles = StyleSheet.create({
+  leading: {
+    position: 'absolute',
+    left: 0,
+    top: 0,
+    bottom: 0,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
   accessory: {
     position: 'absolute',
     right: 0,

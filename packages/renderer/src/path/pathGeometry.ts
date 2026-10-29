@@ -55,3 +55,22 @@ export function pointsAlongPath(
   }
   return result;
 }
+
+/**
+ * The part of a command path still ahead of the player: the player's live position followed by
+ * the waypoints from `waypointIndex` on. With no progress (`waypointIndex < 1`) or no live
+ * position the whole path is returned, so a path that has not started is drawn in full and a
+ * completed section is never drawn as if it would be replayed.
+ */
+export function remainingRoute(
+  points: readonly WorldPoint[],
+  position: WorldPoint | null,
+  waypointIndex: number,
+): WorldPoint[] {
+  'worklet';
+  if (waypointIndex < 1 || position === null || points.length < 2) return points.slice();
+  const from = Math.min(Math.floor(waypointIndex), points.length - 1);
+  const route: WorldPoint[] = [position];
+  for (let i = from; i < points.length; i += 1) route.push(points[i]!);
+  return route;
+}

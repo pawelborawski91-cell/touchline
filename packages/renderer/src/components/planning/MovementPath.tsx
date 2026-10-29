@@ -1,9 +1,10 @@
 import { BlurMask, Circle, Group, Path, Skia, type SkPath } from '@shopify/react-native-skia';
-import type { Vector2 } from '@touchline/shared';
+import { PLAYER_FRAME_STRIDE, type Vector2 } from '@touchline/shared';
 import { useDerivedValue, type DerivedValue, type SharedValue } from 'react-native-reanimated';
 
-import { getPathEnd, pointsAlongPath } from '../../path/pathGeometry';
+import { getPathEnd, pointsAlongPath, remainingRoute } from '../../path/pathGeometry';
 import {
+  CURRENT_WAYPOINT_STYLE,
   MOVEMENT_PATH_STYLES,
   PATH_OUTLINE_COLOR,
   type MovementPathStyle,
@@ -163,4 +164,60 @@ interface LiveMovementPathProps {
 /** The in-progress stroke. Updates through shared values only, so drawing never re-renders React. */
 export function LiveMovementPath({ points, inverseScale }: LiveMovementPathProps) {
   return <PathLayer points={points} variant="draft" inverseScale={inverseScale} />;
+}
+
+interface RemainingMovementPathProps {
+  /** Full world-space command path. */
+  points: readonly Vector2[];
+  variant: MovementPathVariant;
+  inverseScale: SharedValue<number>;
+  /** Live player frame; supplies the player's position and current waypoint index. */
+  frame: SharedValue<readonly number[]>;
+  /** The commanded player's index in the frame. */
+  frameIndex: number;
+}
+
+/**
+ * A command path trimmed to what is still ahead of the player, updated on the UI thread from
+ * the live frame, with the current target waypoint marked. Before the command starts (waypoint
+ * index −1) the full path is drawn.
+ */
+export function RemainingMovementPath({
+  points,
+  variant,
+  inverseScale,
+  frame,
+  frameIndex,
+}: RemainingMovementPathProps) {
+  const route = useDerivedValue(() => {
+    const values = frame.value;
+    const base = frameIndex * PLAYER_FRAME_STRIDE;
+    if (frameIndex < 0 || values.length < base + PLAYER_FRAME_STRIDE) return points.slice();
+    return remainingRoute(points, { x: values[base]!, y: values[base + 1]! }, values[base + 3]!);
+  }, [points, frameIndex]);
+  const waypoint = useDerivedValue(() => {
+    const values = frame.value;
+    const index = values[frameIndex * PLAYER_FRAME_STRIDE + 3] ?? -1;
+    const point = index >= 1 && index < points.length - 1 ? points[Math.floor(index)] : undefined;
+    return point ?? { x: -1e4, y: -1e4 };
+  }, [points, frameIndex]);
+  const waypointX = useDerivedValue(() => waypoint.value.x);
+  const waypointY = useDerivedValue(() => waypoint.value.y);
+  const radius = useDerivedValue(() => CURRENT_WAYPOINT_STYLE.radius * inverseScale.value);
+  const outline = useDerivedValue(() => 1.5 * inverseScale.value);
+
+  return (
+    <Group>
+      <PathLayer points={route} variant={variant} inverseScale={inverseScale} />
+      <Circle
+        cx={waypointX}
+        cy={waypointY}
+        r={radius}
+        style="stroke"
+        strokeWidth={outline}
+        color={CURRENT_WAYPOINT_STYLE.outline}
+      />
+      <Circle cx={waypointX} cy={waypointY} r={radius} color={CURRENT_WAYPOINT_STYLE.color} />
+    </Group>
+  );
 }

@@ -3,6 +3,7 @@ import {
   LiveMovementPath,
   MovementPath,
   PlayerSelectionRing,
+  RemainingMovementPath,
   type MovementPathVariant,
   type WorldLayerContext,
 } from '@touchline/renderer';
@@ -11,49 +12,78 @@ import type { SharedValue } from 'react-native-reanimated';
 
 interface PlanningLayerProps {
   context: WorldLayerContext;
-  /** Commands to draw; drafts, cancelled and interrupted commands are skipped. */
   commands: readonly PlayerCommand[];
   selectedPlayer: MatchPlayer | null;
   preview: PlayerCommand | null;
+  /** Queued command whose path is being redrawn; its stored path is hidden meanwhile. */
+  editingCommandId: string | null;
   livePoints: SharedValue<Vector2[]>;
+  /** Live player frame (positions and current waypoint indices). */
+  frame: SharedValue<readonly number[]>;
+  frameIndexOf: ReadonlyMap<string, number>;
+  /** Also draws cancelled and interrupted commands. */
+  debugVisible: boolean;
 }
 
 function variantFor(
   command: PlayerCommand,
   selectedPlayerId: string | undefined,
-  hasPreview: boolean,
+  debugVisible: boolean,
 ): MovementPathVariant | null {
   switch (command.status) {
     case 'active':
       return 'active';
+    case 'paused':
+      return 'paused';
+    case 'queued':
+      return command.playerId === selectedPlayerId ? 'selected' : 'queued';
     case 'completed':
       return 'completed';
-    case 'queued':
-    case 'paused':
-      return command.playerId === selectedPlayerId && !hasPreview ? 'selected' : 'queued';
+    case 'cancelled':
+    case 'interrupted':
+      return debugVisible ? 'cancelled' : null;
     default:
       return null;
   }
 }
 
 /**
- * World-space command visuals drawn under the markers: completed paths (faint), queued and
- * paused commands (subdued), active paths (bright), the selected player's command, the draft
- * preview, the live stroke, and the selection ring.
+ * World-space command visuals drawn under the markers. Running and paused commands show only
+ * the route still ahead of the player (following the live frame) with the current waypoint;
+ * queued commands show their whole path; completed ones a faint trace. Cancelled and
+ * interrupted commands appear only in debug mode.
  */
 export function PlanningLayer({
   context,
   commands,
   selectedPlayer,
   preview,
+  editingCommandId,
   livePoints,
+  frame,
+  frameIndexOf,
+  debugVisible,
 }: PlanningLayerProps) {
   const { inverseScale } = context;
+  const ordered = [...commands].sort((a, b) => drawOrder(a) - drawOrder(b));
   return (
     <>
-      {commands.map((command) => {
-        const variant = variantFor(command, selectedPlayer?.id, preview !== null);
+      {ordered.map((command) => {
+        if (command.id === editingCommandId) return null;
+        const variant = variantFor(command, selectedPlayer?.id, debugVisible);
         if (!variant) return null;
+        if (command.status === 'active' || command.status === 'paused') {
+          return (
+            <RemainingMovementPath
+              key={command.id}
+              points={command.path}
+              variant={variant}
+              inverseScale={inverseScale}
+              frame={frame}
+              frameIndex={frameIndexOf.get(command.playerId) ?? -1}
+            />
+          );
+        }
         return (
           <MovementPath
             key={command.id}
@@ -68,8 +98,28 @@ export function PlanningLayer({
       )}
       <LiveMovementPath points={livePoints} inverseScale={inverseScale} />
       {selectedPlayer && (
-        <PlayerSelectionRing position={selectedPlayer.position} inverseScale={inverseScale} />
+        <PlayerSelectionRing
+          position={selectedPlayer.position}
+          inverseScale={inverseScale}
+          frame={frame}
+          frameIndex={frameIndexOf.get(selectedPlayer.id) ?? -1}
+        />
       )}
     </>
   );
+}
+
+/** Faint traces first, so live routes are never hidden under them. */
+function drawOrder(command: PlayerCommand): number {
+  switch (command.status) {
+    case 'cancelled':
+    case 'interrupted':
+      return 0;
+    case 'completed':
+      return 1;
+    case 'queued':
+      return 2;
+    default:
+      return 3;
+  }
 }

@@ -15,14 +15,19 @@ export type {
   MoveCommandInput,
   MovementMode,
   PlayerCommand,
+  TransitionContext,
 } from '@touchline/shared';
 export {
   activateCommand,
   activateLiveCommands,
+  canTransitionCommand,
   cancelCommand,
+  COMMAND_TRANSITIONS,
+  CommandTransitionError,
   commandReducer,
   completeCommand,
   confirmDraft,
+  countCommandsByStatus,
   createCommandBook,
   createDraft,
   createMoveCommand,
@@ -33,6 +38,7 @@ export {
   getLiveMovementCommands,
   getMovementCommand,
   getPlayerCommands,
+  interruptCommand,
   isActiveMovementCommand,
   isFinishedCommand,
   isLiveMovementCommand,
@@ -44,6 +50,9 @@ export {
   removeCommand,
   replaceMovementCommand,
   resumeCommand,
+  supersedeMovementCommand,
+  transitionCommand,
+  tryTransitionCommand,
 } from '@touchline/shared';
 
 export type { SamplePathOptions } from './path/PathSampler';

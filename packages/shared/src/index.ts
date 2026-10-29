@@ -11,11 +11,17 @@ export {
 } from './commands/PlayerCommand';
 export type { MoveCommandInput } from './commands/CommandFactory';
 export { createMoveCommand } from './commands/CommandFactory';
+export {
+  canTransitionCommand,
+  COMMAND_TRANSITIONS,
+  CommandTransitionError,
+} from './commands/CommandLifecycle';
 export type {
   CommandAction,
   CommandBook,
   CreateDraftResult,
   DraftOptions,
+  TransitionContext,
 } from './commands/CommandManager';
 export {
   activateCommand,
@@ -24,6 +30,7 @@ export {
   commandReducer,
   completeCommand,
   confirmDraft,
+  countCommandsByStatus,
   createCommandBook,
   createDraft,
   getActiveMovementCommand,
@@ -31,12 +38,16 @@ export {
   getLiveMovementCommands,
   getMovementCommand,
   getPlayerCommands,
+  interruptCommand,
   pauseActiveCommands,
   pauseCommand,
   pruneFinishedCommands,
   removeCommand,
   replaceMovementCommand,
   resumeCommand,
+  supersedeMovementCommand,
+  transitionCommand,
+  tryTransitionCommand,
 } from './commands/CommandManager';
 export type {
   BallState,
@@ -49,6 +60,7 @@ export type {
   TeamSide,
 } from './match';
 export { DEFAULT_MATCH_CONFIG, getTicksPerTurn } from './match';
+export { PLAYER_FRAME_STRIDE } from './frame';
 export {
   CENTRE_CIRCLE_RADIUS,
   CORNER_ARC_RADIUS,

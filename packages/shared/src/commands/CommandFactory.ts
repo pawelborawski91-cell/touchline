@@ -25,5 +25,7 @@ export function createMoveCommand(input: MoveCommandInput): PlayerCommand {
     createdAtTick: input.createdAtTick ?? 0,
     priority: input.priority ?? DEFAULT_COMMAND_PRIORITY,
     interruptible: input.interruptible ?? true,
+    startedTurn: null,
+    endedTurn: null,
   };
 }

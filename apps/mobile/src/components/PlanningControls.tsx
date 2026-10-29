@@ -11,13 +11,17 @@ export interface PlanningControlActions {
   cycleMovementMode: () => void;
   editCommand: () => void;
   cancelCommand: () => void;
-  startExecution: () => void;
+  commitPlans: () => void;
 }
 
 interface PlanningControlsProps {
   mode: PlanningMode;
+  /** The selected player has a live (queued, active or paused) command. */
   hasCommand: boolean;
-  /** Only queued commands can be redrawn; a paused one can only be cancelled. */
+  /**
+   * Only queued commands are edited in place; a running command is replaced by drawing a new
+   * route from the player's current position, or cancelled.
+   */
   canEdit: boolean;
   canConfirm: boolean;
   canUndo: boolean;
@@ -64,7 +68,7 @@ export function ControlButton({
   );
 }
 
-/** Context-sensitive planning actions for the selected player, plus starting the turn. */
+/** Context-sensitive planning actions for the selected player, plus committing the turn. */
 export function PlanningControls({
   mode,
   hasCommand,
@@ -102,7 +106,7 @@ export function PlanningControls({
           <ControlButton label="Cancel cmd" onPress={actions.cancelCommand} tone="danger" />
         </>
       )}
-      <ControlButton label="START EXECUTION" onPress={actions.startExecution} tone="go" />
+      <ControlButton label="COMMIT PLANS" onPress={actions.commitPlans} tone="go" />
     </View>
   );
 }

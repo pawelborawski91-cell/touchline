@@ -7,7 +7,6 @@ import {
   type Vector2,
 } from '@touchline/shared';
 import {
-  createFollowerState,
   drainStamina,
   followPath,
   getSpeedCap,
@@ -17,7 +16,7 @@ import {
   type PreparedPath,
 } from '@touchline/physics';
 
-import type { FollowerEntry, SimulationConfig, SimulationState } from './SimulationState';
+import type { PathExecutionState, SimulationConfig, SimulationState } from './SimulationState';
 
 /**
  * Prepared paths keyed by the command's (immutable) path array. A pure memo: the result depends
@@ -38,28 +37,41 @@ function preparedPathFor(points: readonly Vector2[], config: PathFollowerConfig)
 
 interface PlayerStepResult {
   player: MatchPlayer;
-  follower: FollowerEntry | null;
+  pathState: PathExecutionState | null;
   completedCommandId: string | null;
 }
 
 function stepIdlePlayer(player: MatchPlayer, dt: number): PlayerStepResult {
   const speed = Math.hypot(player.velocity.x, player.velocity.y);
-  if (speed === 0) return { player, follower: null, completedCommandId: null };
+  if (speed === 0) return { player, pathState: null, completedCommandId: null };
   const body = stepMovement(player, { direction: null, speed: 0 }, player.movement, dt);
-  return { player: { ...player, ...body }, follower: null, completedCommandId: null };
+  return { player: { ...player, ...body }, pathState: null, completedCommandId: null };
+}
+
+/** Initial path state for a command that has not started following its path yet. */
+export function createPathExecutionState(
+  commandId: string,
+  pointCount: number,
+): PathExecutionState {
+  return {
+    commandId,
+    currentWaypointIndex: 1,
+    distanceAlongPath: 0,
+    progress: 0,
+    isFinalWaypoint: pointCount <= 2,
+  };
 }
 
 function stepCommandedPlayer(
   player: MatchPlayer,
   command: PlayerCommand,
-  previous: FollowerEntry | undefined,
+  previous: PathExecutionState | undefined,
   config: SimulationConfig,
 ): PlayerStepResult {
   const dt = config.match.fixedDeltaTime;
-  const follower =
-    previous && previous.commandId === command.id
-      ? { waypointIndex: previous.waypointIndex }
-      : createFollowerState();
+  const prepared = preparedPathFor(command.path, config.follower);
+  const last = Math.max(prepared.points.length - 1, 1);
+  const before = previous ?? createPathExecutionState(command.id, prepared.points.length);
   const cap = getSpeedCap(
     player.movement,
     command.movementMode,
@@ -67,19 +79,31 @@ function stepCommandedPlayer(
     config.stamina,
   );
   const result = followPath(
-    preparedPathFor(command.path, config.follower),
-    follower,
+    prepared,
+    { waypointIndex: before.currentWaypointIndex },
     player,
     cap,
     player.movement,
     config.follower,
+  );
+  // Progress is monotonic: the follower never revisits a waypoint and distance never shrinks.
+  const waypointIndex = Math.max(before.currentWaypointIndex, result.follower.waypointIndex);
+  const covered = Math.min(
+    prepared.total,
+    Math.max(before.distanceAlongPath, prepared.total - result.remaining),
   );
 
   if (result.completed) {
     // Stopped within the completion radius: keep the final position, clear any residual creep.
     return {
       player: { ...player, velocity: { x: 0, y: 0 }, activeCommandId: null },
-      follower: null,
+      pathState: {
+        commandId: command.id,
+        currentWaypointIndex: last,
+        distanceAlongPath: prepared.total,
+        progress: 1,
+        isFinalWaypoint: true,
+      },
       completedCommandId: command.id,
     };
   }
@@ -101,7 +125,13 @@ function stepCommandedPlayer(
       ),
       activeCommandId: command.id,
     },
-    follower: { commandId: command.id, waypointIndex: result.follower.waypointIndex },
+    pathState: {
+      commandId: command.id,
+      currentWaypointIndex: waypointIndex,
+      distanceAlongPath: covered,
+      progress: prepared.total > 0 ? covered / prepared.total : 1,
+      isFinalWaypoint: waypointIndex >= last,
+    },
     completedCommandId: null,
   };
 }
@@ -114,17 +144,23 @@ function stepCommandedPlayer(
 export function stepPlayers(state: SimulationState, config: SimulationConfig): SimulationState {
   const dt = config.match.fixedDeltaTime;
   let commands: CommandBook = state.commands;
-  const followers: Record<string, FollowerEntry> = {};
+  let pathStates = state.pathStates;
 
   const players = state.players.map((player) => {
     const command = getActiveMovementCommand(state.commands, player.id);
     const result = command
-      ? stepCommandedPlayer(player, command, state.followers[player.id], config)
-      : stepIdlePlayer({ ...player, activeCommandId: null }, dt);
-    if (result.follower) followers[player.id] = result.follower;
-    if (result.completedCommandId) commands = completeCommand(commands, result.completedCommandId);
+      ? stepCommandedPlayer(player, command, state.pathStates[command.id], config)
+      : stepIdlePlayer(player.activeCommandId ? { ...player, activeCommandId: null } : player, dt);
+    if (result.pathState) {
+      if (pathStates === state.pathStates) pathStates = { ...state.pathStates };
+      (pathStates as Record<string, PathExecutionState>)[result.pathState.commandId] =
+        result.pathState;
+    }
+    if (result.completedCommandId) {
+      commands = completeCommand(commands, result.completedCommandId, { turn: state.turn });
+    }
     return result.player;
   });
 
-  return { ...state, players, commands, followers };
+  return { ...state, players, commands, pathStates };
 }

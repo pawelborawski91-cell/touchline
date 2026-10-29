@@ -18,6 +18,10 @@ export interface PlayerCommand {
   createdAtTick: number;
   priority: number;
   interruptible: boolean;
+  /** Turn in which the command first became active; null until it starts. */
+  startedTurn: number | null;
+  /** Turn in which it reached a terminal status (completed/cancelled/interrupted); else null. */
+  endedTurn: number | null;
 }
 
 export const DEFAULT_COMMAND_PRIORITY = 50;
