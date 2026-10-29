@@ -3,11 +3,10 @@ import type { MatchPlayer } from '@touchline/shared';
 import { useMemo } from 'react';
 import { useDerivedValue, type SharedValue } from 'react-native-reanimated';
 
+import { PLAYER_MARKER_RADIUS } from '../interaction/hitTest';
 import type { MarkerKit } from '../theme/palette';
 import { palette } from '../theme/palette';
 
-/** Marker radius in screen pixels; constant at every zoom level. */
-export const PLAYER_MARKER_RADIUS = 13;
 const OUTLINE_WIDTH = 1.5;
 const INDICATOR_LENGTH = 6;
 const INDICATOR_HALF_WIDTH = 4.5;

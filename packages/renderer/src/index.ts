@@ -5,10 +5,22 @@
  * `@touchline/renderer/core`.
  */
 export * from './core';
-export { useCameraController, type CameraController } from './camera/CameraController';
+export {
+  useCameraController,
+  useCameraGestures,
+  type CameraController,
+  type CameraGestureHandlers,
+} from './camera/CameraController';
 export { BallMarker, BALL_MARKER_RADIUS } from './components/BallMarker';
 export { Goal, type GoalEnd } from './components/Goal';
-export { MatchView } from './components/MatchView';
+export { MatchView, type WorldLayerContext } from './components/MatchView';
+export { LiveMovementPath, MovementPath } from './components/planning/MovementPath';
+export {
+  MOVEMENT_PATH_STYLES,
+  type MovementPathStyle,
+  type MovementPathVariant,
+} from './components/planning/pathStyles';
+export { PlayerSelectionRing } from './components/planning/PlayerSelectionRing';
 export { Pitch } from './components/Pitch';
-export { PlayerMarker, PLAYER_MARKER_RADIUS } from './components/PlayerMarker';
+export { PlayerMarker } from './components/PlayerMarker';
 export { palette, TEAM_KITS, type MarkerKit } from './theme/palette';

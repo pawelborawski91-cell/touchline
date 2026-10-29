@@ -83,13 +83,15 @@ describe('workspace', () => {
     }
   });
 
-  it.each(['@touchline/shared', '@touchline/physics', '@touchline/match-engine'] as const)(
-    '%s has no React Native, Expo, Skia, Zustand or UI dependencies',
-    (name) => {
-      const uiDeps = runtimeDeps(readManifest(name)).filter((dep) => UI_PACKAGE_PATTERN.test(dep));
-      expect(uiDeps).toEqual([]);
-    },
-  );
+  it.each([
+    '@touchline/shared',
+    '@touchline/physics',
+    '@touchline/match-engine',
+    '@touchline/planning',
+  ] as const)('%s has no React Native, Expo, Skia, Zustand or UI dependencies', (name) => {
+    const uiDeps = runtimeDeps(readManifest(name)).filter((dep) => UI_PACKAGE_PATTERN.test(dep));
+    expect(uiDeps).toEqual([]);
+  });
 
   it('has no circular workspace dependencies', () => {
     const visiting = new Set<PackageName>();

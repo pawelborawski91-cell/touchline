@@ -107,6 +107,28 @@ export default defineConfig(
     },
   },
   {
+    files: ['packages/planning/**/*.ts'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            ...UI_AND_PLATFORM_IMPORTS,
+            ...workspaceImports(
+              [
+                '@touchline/physics',
+                '@touchline/match-engine',
+                '@touchline/renderer',
+                '@touchline/mobile',
+              ],
+              '@touchline/planning is pure planning logic and may only depend on @touchline/shared.',
+            ),
+          ],
+        },
+      ],
+    },
+  },
+  {
     files: ['packages/renderer/**/*.{ts,tsx}'],
     rules: {
       'no-restricted-imports': [
@@ -129,6 +151,8 @@ export default defineConfig(
       'packages/renderer/src/core.ts',
       'packages/renderer/src/camera/cameraTransforms.ts',
       'packages/renderer/src/coordinates/**/*.ts',
+      'packages/renderer/src/interaction/**/*.ts',
+      'packages/renderer/src/path/**/*.ts',
       'packages/renderer/src/types/**/*.ts',
     ],
     rules: {
