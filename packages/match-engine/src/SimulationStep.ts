@@ -4,6 +4,7 @@ import {
   type CommandBook,
   type MatchPlayer,
   type PlayerCommand,
+  type Vector2,
 } from '@touchline/shared';
 import {
   createFollowerState,
@@ -12,9 +13,28 @@ import {
   getSpeedCap,
   preparePath,
   stepMovement,
+  type PathFollowerConfig,
+  type PreparedPath,
 } from '@touchline/physics';
 
 import type { FollowerEntry, SimulationConfig, SimulationState } from './SimulationState';
+
+/**
+ * Prepared paths keyed by the command's (immutable) path array. A pure memo: the result depends
+ * only on the path and follower config, so caching never changes simulation output.
+ */
+const preparedPaths = new WeakMap<
+  readonly Vector2[],
+  { config: PathFollowerConfig; path: PreparedPath }
+>();
+
+function preparedPathFor(points: readonly Vector2[], config: PathFollowerConfig): PreparedPath {
+  const cached = preparedPaths.get(points);
+  if (cached && cached.config === config) return cached.path;
+  const path = preparePath(points, config);
+  preparedPaths.set(points, { config, path });
+  return path;
+}
 
 interface PlayerStepResult {
   player: MatchPlayer;
@@ -47,7 +67,7 @@ function stepCommandedPlayer(
     config.stamina,
   );
   const result = followPath(
-    preparePath(command.path, config.follower),
+    preparedPathFor(command.path, config.follower),
     follower,
     player,
     cap,
