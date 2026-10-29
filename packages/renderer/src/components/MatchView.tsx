@@ -1,6 +1,6 @@
 import { Canvas, Group, useFont } from '@shopify/react-native-skia';
 import { getTeamSide, type MatchSnapshot } from '@touchline/shared';
-import { useMemo, useState } from 'react';
+import { useMemo, useState, type ReactNode } from 'react';
 import {
   StyleSheet,
   View,
@@ -8,14 +8,13 @@ import {
   type StyleProp,
   type ViewStyle,
 } from 'react-native';
-import { GestureDetector } from 'react-native-gesture-handler';
-import { useDerivedValue } from 'react-native-reanimated';
+import { GestureDetector, type ComposedGesture } from 'react-native-gesture-handler';
+import { useDerivedValue, type DerivedValue, type SharedValue } from 'react-native-reanimated';
 
 import numberFontSource from '../../assets/fonts/BarlowSemiCondensed-Bold.ttf';
-import { useCameraController } from '../camera/CameraController';
-import { DEFAULT_CAMERA_CONFIG } from '../camera/cameraTransforms';
+import type { CameraController } from '../camera/CameraController';
 import { TEAM_KITS } from '../theme/palette';
-import type { CameraConfig } from '../types/renderer';
+import type { ViewTransform } from '../types/renderer';
 import { BallMarker } from './BallMarker';
 import { Goal } from './Goal';
 import { Pitch } from './Pitch';
@@ -27,20 +26,35 @@ const MIN_LINE_WIDTH_PX = 1.5;
 /** ...and never thinner than real 12 cm lines when zoomed in. */
 const REAL_LINE_WIDTH_METRES = 0.12;
 
+/** Values available to world-space layers drawn inside the camera transform. */
+export interface WorldLayerContext {
+  /** 1 / camera scale, for drawing at a constant screen size. */
+  inverseScale: SharedValue<number>;
+  transform: DerivedValue<ViewTransform>;
+}
+
 interface MatchViewProps {
   /** Read-only match data; the view never mutates it. */
   snapshot: MatchSnapshot;
-  cameraConfig?: CameraConfig;
+  camera: CameraController;
+  /** Gestures attached to the view, e.g. `useCameraGestures(camera)`. */
+  gesture: ComposedGesture;
+  /** World-space content drawn above the pitch and below the markers. */
+  renderUnderlay?: (context: WorldLayerContext) => ReactNode;
+  /** World-space content drawn above the markers and ball. */
+  renderOverlay?: (context: WorldLayerContext) => ReactNode;
   style?: StyleProp<ViewStyle>;
 }
 
-/** Interactive pitch view: renders a match snapshot under a pan/pinch camera. */
+/** Pitch view: renders a match snapshot under the given camera and gestures. */
 export function MatchView({
   snapshot,
-  cameraConfig = DEFAULT_CAMERA_CONFIG,
+  camera,
+  gesture,
+  renderUnderlay,
+  renderOverlay,
   style,
 }: MatchViewProps) {
-  const camera = useCameraController(cameraConfig);
   const [hasLayout, setHasLayout] = useState(false);
   const font = useFont(numberFontSource, NUMBER_FONT_SIZE);
 
@@ -55,6 +69,10 @@ export function MatchView({
     return [{ translateX }, { translateY }, { scale }];
   });
   const inverseScale = useDerivedValue(() => 1 / Math.max(camera.transform.value.scale, 1e-6));
+  const layerContext = useMemo<WorldLayerContext>(
+    () => ({ inverseScale, transform: camera.transform }),
+    [camera.transform, inverseScale],
+  );
   const lineWidth = useDerivedValue(() =>
     Math.max(MIN_LINE_WIDTH_PX * inverseScale.value, REAL_LINE_WIDTH_METRES),
   );
@@ -66,14 +84,15 @@ export function MatchView({
   );
 
   return (
-    <GestureDetector gesture={camera.gesture}>
+    <GestureDetector gesture={gesture}>
       <View style={[styles.container, style]} onLayout={onLayout} collapsable={false}>
         {hasLayout && (
           <Canvas style={StyleSheet.absoluteFill}>
             <Group transform={worldTransform}>
-              <Pitch surround={cameraConfig.bounds} lineWidth={lineWidth} />
+              <Pitch surround={camera.config.bounds} lineWidth={lineWidth} />
               <Goal end="left" lineWidth={lineWidth} />
               <Goal end="right" lineWidth={lineWidth} />
+              {renderUnderlay?.(layerContext)}
               {players.map((player) => {
                 const side = getTeamSide(snapshot, player.teamId);
                 if (!side) return null;
@@ -88,6 +107,7 @@ export function MatchView({
                 );
               })}
               <BallMarker ball={snapshot.ball} inverseScale={inverseScale} />
+              {renderOverlay?.(layerContext)}
             </Group>
           </Canvas>
         )}

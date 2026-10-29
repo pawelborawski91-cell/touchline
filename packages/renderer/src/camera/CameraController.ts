@@ -38,14 +38,29 @@ import {
 const DOUBLE_TAP_ZOOM_FACTOR = 2.5;
 const CAMERA_ANIMATION = { duration: 280, easing: Easing.out(Easing.cubic) } as const;
 
+/** Worklets that move the camera; gesture callbacks call these on the UI thread. */
+export interface CameraGestureHandlers {
+  stopMotion: () => void;
+  panUpdate: (changeX: number, changeY: number) => void;
+  panEnd: (velocityX: number, velocityY: number) => void;
+  pinchStart: (scale: number, focalX: number, focalY: number) => void;
+  pinchUpdate: (scale: number, focalX: number, focalY: number) => void;
+  pinchEnd: () => void;
+  doubleTapZoom: (x: number, y: number) => void;
+}
+
 export interface CameraController {
+  config: CameraConfig;
   centerX: SharedValue<number>;
   centerY: SharedValue<number>;
   zoom: SharedValue<number>;
   viewport: SharedValue<Viewport>;
   /** World→screen transform for the current camera, recomputed on the UI thread. */
   transform: DerivedValue<ViewTransform>;
-  gesture: ComposedGesture;
+  /** True while a two-finger pinch is zooming the camera. */
+  isPinching: SharedValue<boolean>;
+  /** UI-thread camera operations, composable into any gesture setup. */
+  handlers: CameraGestureHandlers;
   setViewport: (viewport: Viewport) => void;
   reset: () => void;
 }
@@ -101,12 +116,8 @@ export function useCameraController(
     cancelAnimation(zoom);
   }, [centerX, centerY, zoom]);
 
-  const pan = usePanGesture({
-    onBegin: () => {
-      'worklet';
-      stopCameraMotion();
-    },
-    onUpdate: (event) => {
+  const panUpdate = useCallback(
+    (changeX: number, changeY: number) => {
       'worklet';
       if (isPinching.value) return;
       // The first delta after a pinch includes the jump from the two-finger centroid.
@@ -114,9 +125,13 @@ export function useCameraController(
         skipNextPanDelta.value = false;
         return;
       }
-      writeCamera(panCamera(readCamera(), event.changeX, event.changeY, viewport.value, config));
+      writeCamera(panCamera(readCamera(), changeX, changeY, viewport.value, config));
     },
-    onDeactivate: (event) => {
+    [config, isPinching, readCamera, skipNextPanDelta, viewport, writeCamera],
+  );
+
+  const panEnd = useCallback(
+    (velocityX: number, velocityY: number) => {
       'worklet';
       if (isPinching.value) return;
       const camera = readCamera();
@@ -124,51 +139,57 @@ export function useCameraController(
       if (scale <= 0) return;
       const limits = getCenterLimits(camera.zoom, viewport.value, config);
       centerX.value = withDecay({
-        velocity: -event.velocityX / scale,
+        velocity: -velocityX / scale,
         clamp: [limits.minX, limits.maxX],
       });
       centerY.value = withDecay({
-        velocity: -event.velocityY / scale,
+        velocity: -velocityY / scale,
         clamp: [limits.minY, limits.maxY],
       });
     },
-  });
+    [centerX, centerY, config, isPinching, readCamera, viewport],
+  );
 
-  const pinch = usePinchGesture({
-    onActivate: (event) => {
+  const pinchStart = useCallback(
+    (scale: number, focalX: number, focalY: number) => {
       'worklet';
       stopCameraMotion();
       isPinching.value = true;
       pinchStartCamera.value = readCamera();
-      pinchStartFocal.value = { x: event.focalX, y: event.focalY };
-      pinchStartScale.value = event.scale > 0 ? event.scale : 1;
+      pinchStartFocal.value = { x: focalX, y: focalY };
+      pinchStartScale.value = scale > 0 ? scale : 1;
     },
-    onUpdate: (event) => {
+    [isPinching, pinchStartCamera, pinchStartFocal, pinchStartScale, readCamera, stopCameraMotion],
+  );
+
+  const pinchUpdate = useCallback(
+    (scale: number, focalX: number, focalY: number) => {
       'worklet';
       if (!isPinching.value) return;
       const start = pinchStartCamera.value;
-      const relativeScale = event.scale / pinchStartScale.value;
+      const relativeScale = scale / pinchStartScale.value;
       writeCamera(
         zoomCameraAt(
           start,
           pinchStartFocal.value,
           start.zoom * relativeScale,
-          { x: event.focalX, y: event.focalY },
+          { x: focalX, y: focalY },
           viewport.value,
           config,
         ),
       );
     },
-    onFinalize: () => {
-      'worklet';
-      if (isPinching.value) skipNextPanDelta.value = true;
-      isPinching.value = false;
-    },
-  });
+    [config, isPinching, pinchStartCamera, pinchStartFocal, pinchStartScale, viewport, writeCamera],
+  );
 
-  const doubleTap = useTapGesture({
-    numberOfTaps: 2,
-    onActivate: (event) => {
+  const pinchEnd = useCallback(() => {
+    'worklet';
+    if (isPinching.value) skipNextPanDelta.value = true;
+    isPinching.value = false;
+  }, [isPinching, skipNextPanDelta]);
+
+  const doubleTapZoom = useCallback(
+    (x: number, y: number) => {
       'worklet';
       stopCameraMotion();
       const camera = readCamera();
@@ -176,7 +197,7 @@ export function useCameraController(
         animateCamera(clampCamera(createInitialCamera(config), viewport.value, config));
         return;
       }
-      const point = { x: event.x, y: event.y };
+      const point = { x, y };
       animateCamera(
         zoomCameraAt(
           camera,
@@ -188,9 +209,21 @@ export function useCameraController(
         ),
       );
     },
-  });
+    [animateCamera, config, readCamera, stopCameraMotion, viewport],
+  );
 
-  const gesture = useSimultaneousGestures(pan, pinch, doubleTap);
+  const handlers = useMemo<CameraGestureHandlers>(
+    () => ({
+      stopMotion: stopCameraMotion,
+      panUpdate,
+      panEnd,
+      pinchStart,
+      pinchUpdate,
+      pinchEnd,
+      doubleTapZoom,
+    }),
+    [doubleTapZoom, panEnd, panUpdate, pinchEnd, pinchStart, pinchUpdate, stopCameraMotion],
+  );
 
   // Read the shared values directly (not via readCamera) so Reanimated can see the dependencies.
   const transform = useDerivedValue(() =>
@@ -213,5 +246,57 @@ export function useCameraController(
     writeCamera(clampCamera(createInitialCamera(config), viewport.value, config));
   }, [config, viewport, writeCamera]);
 
-  return { centerX, centerY, zoom, viewport, transform, gesture, setViewport, reset };
+  return {
+    config,
+    centerX,
+    centerY,
+    zoom,
+    viewport,
+    isPinching,
+    transform,
+    handlers,
+    setViewport,
+    reset,
+  };
+}
+
+/** Camera-only gestures: one-finger pan with momentum, pinch zoom, double-tap zoom/reset. */
+export function useCameraGestures(camera: CameraController): ComposedGesture {
+  const { handlers } = camera;
+  const pan = usePanGesture({
+    onBegin: () => {
+      'worklet';
+      handlers.stopMotion();
+    },
+    onUpdate: (event) => {
+      'worklet';
+      handlers.panUpdate(event.changeX, event.changeY);
+    },
+    onDeactivate: (event) => {
+      'worklet';
+      handlers.panEnd(event.velocityX, event.velocityY);
+    },
+  });
+  const pinch = usePinchGesture({
+    onActivate: (event) => {
+      'worklet';
+      handlers.pinchStart(event.scale, event.focalX, event.focalY);
+    },
+    onUpdate: (event) => {
+      'worklet';
+      handlers.pinchUpdate(event.scale, event.focalX, event.focalY);
+    },
+    onFinalize: () => {
+      'worklet';
+      handlers.pinchEnd();
+    },
+  });
+  const doubleTap = useTapGesture({
+    numberOfTaps: 2,
+    onActivate: (event) => {
+      'worklet';
+      handlers.doubleTapZoom(event.x, event.y);
+    },
+  });
+  return useSimultaneousGestures(pan, pinch, doubleTap);
 }
