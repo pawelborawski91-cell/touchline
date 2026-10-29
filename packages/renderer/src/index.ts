@@ -14,8 +14,13 @@ export {
 export { BallMarker, BALL_MARKER_RADIUS } from './components/BallMarker';
 export { Goal, type GoalEnd } from './components/Goal';
 export { MatchView, type WorldLayerContext } from './components/MatchView';
-export { LiveMovementPath, MovementPath } from './components/planning/MovementPath';
 export {
+  LiveMovementPath,
+  MovementPath,
+  RemainingMovementPath,
+} from './components/planning/MovementPath';
+export {
+  CURRENT_WAYPOINT_STYLE,
   MOVEMENT_PATH_STYLES,
   type MovementPathStyle,
   type MovementPathVariant,

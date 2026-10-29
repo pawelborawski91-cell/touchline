@@ -1,5 +1,5 @@
 import { BlurMask, Circle, Group, Path, Skia, Text, type SkFont } from '@shopify/react-native-skia';
-import type { MatchPlayer } from '@touchline/shared';
+import { PLAYER_FRAME_STRIDE, type MatchPlayer } from '@touchline/shared';
 import { useMemo } from 'react';
 import { useDerivedValue, type SharedValue } from 'react-native-reanimated';
 
@@ -27,7 +27,7 @@ interface PlayerMarkerProps {
   font: SkFont | null;
   /** 1 / camera scale; cancels the world zoom so the marker keeps its screen size. */
   inverseScale: SharedValue<number>;
-  /** Live `[x, y, facing]` triples; when it has this player's slot it overrides the snapshot. */
+  /** Live player frame (see `PLAYER_FRAME_STRIDE`); when it has this player's slot it overrides the snapshot. */
   frame?: SharedValue<readonly number[]>;
   /** Index of this player in `frame` (its index in the snapshot's player list). */
   frameIndex?: number;
@@ -46,7 +46,7 @@ export function PlayerMarker({
   const { facing } = player;
   const transform = useDerivedValue(() => {
     const values = frame?.value;
-    const base = frameIndex * 3;
+    const base = frameIndex * PLAYER_FRAME_STRIDE;
     const live = values !== undefined && frameIndex >= 0 && values.length > base + 2;
     return [
       { translateX: live ? values[base]! : x },
@@ -56,7 +56,7 @@ export function PlayerMarker({
   });
   const rotation = useDerivedValue(() => {
     const values = frame?.value;
-    const base = frameIndex * 3;
+    const base = frameIndex * PLAYER_FRAME_STRIDE;
     const live = values !== undefined && frameIndex >= 0 && values.length > base + 2;
     return [{ rotate: live ? values[base + 2]! : facing }];
   });

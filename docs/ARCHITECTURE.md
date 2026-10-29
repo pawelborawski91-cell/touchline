@@ -118,17 +118,75 @@ packages/renderer/
 - The match engine is a pure TypeScript state machine, advanced in fixed 0.05 s ticks (20 Hz).
   It runs identically in Node (tests, future server) and on device. Every step returns a new
   immutable `SimulationState`; identical inputs give identical results.
-- Turn phases: `planning` → `executing` (exactly 100 ticks = 5 s) → `turn_complete` → `planning`
-  of the next turn. The simulation only advances while executing.
 - `MatchEngine.advanceFrame(realDt)` feeds real frame time into an accumulator
-  (`SimulationClock`): frames longer than 0.25 s are clamped (backgrounding), at most 5 steps run
-  per frame, and the remainder is the interpolation factor. Frame rate never changes the result.
-- The app's render loop (`useMatchEngine`, `requestAnimationFrame`, only while executing) calls
-  `advanceFrame`, then `writeFrame` copies interpolated `[x, y, facing]` per player into a
-  Reanimated shared value. `PlayerMarker` reads it on the UI thread, so movement needs no React
-  re-render. HUD text polls `getDebugInfo()` at 10 Hz.
+  (`SimulationClock`): frames longer than 0.25 s are clamped, at most 5 steps run per frame, and
+  the remainder is the interpolation factor. Frame rate never changes the result.
+- The app's render loop (`useMatchEngine`, `requestAnimationFrame`, only while executing and not
+  suspended) calls `advanceFrame`, then `writeFrame` copies interpolated
+  `[x, y, facing, waypointIndex]` per player (`PLAYER_FRAME_STRIDE = 4`) into a Reanimated shared
+  value. Markers, the selection ring and remaining-route paths read it on the UI thread, so
+  movement needs no React re-render. The countdown and debug readout subscribe to simulation
+  ticks (`subscribeTicks` / `getTurnSnapshot`), not to a UI timer.
 - UI (React components + Zustand) reads the engine view for display and turns user input into
-  command actions (`engine.dispatchCommand`, planning phase only); it never edits simulation state.
+  engine requests (`planMovement`, `replaceCommand`, `cancelCommand`, `commitPlans`). It never
+  edits simulation state; invalid requests throw descriptive errors that the UI shows as notices.
+
+## Match lifecycle (Sprint 4)
+
+One `MatchEngine` per match owns the single clock, the single `MatchPhase` and the single command
+book.
+
+```
+            commitPlans()                100 ticks elapsed (turn + 1)
+ planning ───────────────► execution ───────────────────────────► planning
+    │                          │ callStoppage()                       ▲
+    │ finishMatch()            ▼                                      │
+    ▼                       stoppage ─────── endStoppage() (turn + 1) ┘
+ finished
+```
+
+- `MatchPhaseMachine` lists the legal transitions; anything else throws `PhaseTransitionError`
+  ("Cannot … : the match cannot go from X to Y"). Actions in the wrong phase throw
+  `MatchStateError`.
+- `TurnController` is tick-authoritative: `turnDuration / fixedDeltaTime` must be a whole number
+  of ticks (5 s / 0.05 s = 100). The turn starts at 1 and increments on each return to planning.
+  `getTurnSnapshot` gives a read-only view (turn, phase, tick, turn tick, elapsed, remaining,
+  progress, team commits).
+- **Planning freeze**: `stepExecution` throws outside execution and `advanceFrame` is a no-op, so
+  positions, velocities, facing and stamina cannot change while planning.
+- **Commit**: `commitPlans` validates every live plan (at least 2 finite points, inside the pitch
+  ±0.5 m), marks every `TeamCommitState` committed, prunes commands that finished before the
+  previous turn, re-anchors each queued path's first point to the player's actual position, and
+  activates queued commands. `commitTeam` is the per-team form; execution starts once all teams
+  have committed. There is only one local controller (both teams are committed from one device;
+  no networking or AI), but per-team commit state is already in place for multiplayer.
+- **Backgrounding** is not a phase. `suspend()` holds the clock (the phase stays `execution`),
+  and nothing is simulated however long the app is away. `resume()` (the RESUME button)
+  continues from the same tick, so a complete turn is always exactly 100 ticks.
+
+### Persistent commands
+
+- Turn end does **not** pause, reset or recreate commands: active commands stay `active`, queued
+  ones stay `queued`, and players keep position, velocity, facing and stamina.
+- Path progress lives in `SimulationState.pathStates[commandId]` (`PathExecutionState`:
+  `currentWaypointIndex`, `distanceAlongPath`, `progress`, `isFinalWaypoint`). It is monotonic
+  (never decreases) and is never recalculated from the start of the path.
+- Command transitions are validated (`COMMAND_TRANSITIONS`): draft → queued/cancelled;
+  queued → active/cancelled; active → completed/cancelled/paused/interrupted;
+  paused → active/cancelled/interrupted. `completed`, `cancelled` and `interrupted` are terminal.
+  An illegal transition throws `CommandTransitionError`. A player has at most one active and one
+  queued movement command.
+- **Replacement rule**: a new plan for a player supersedes their live command. A replaced
+  _queued_ command becomes `cancelled`; a replaced _active_ or _paused_ command becomes
+  `interrupted`. The new command starts from the player's actual position with their velocity
+  preserved; it inherits the old command's pace unless one is given. An explicit cancel is
+  always `cancelled`.
+- Commands carry `startedTurn` / `endedTurn`, so the planning screen can show what finished in
+  the previous turn. Those stay visible until the next commit prunes them.
+- A stoppage pauses active commands (`paused`); the next commit resumes them.
+- Path colours: draft bright cyan; queued cyan with a clear endpoint; active solid lime; paused
+  muted amber; completed subtle grey; cancelled and interrupted only in debug mode. Active and
+  paused routes draw only the remaining part, from the player, with the current waypoint marked.
 
 ## Movement model (Sprint 3)
 
@@ -142,9 +200,8 @@ packages/renderer/
 - **Path follower**: targets the next waypoint (advancing inside a 1 m arrival radius or once
   passed, never snapping), limits speed so the player can brake for upcoming corners and for the
   end (`v = √(v_exit² + 2·a·0.85·d)`), and completes once within 0.25 m and below 0.1 m/s.
-- **Commands**: `queued → active` at execution start, `active → completed` on arrival,
-  `active → paused` at turn end (resumed next turn), `cancelled` on demand. At most one active
-  movement command per player; confirming a new one replaces the queued/paused one.
+- **Commands**: `queued → active` at commit, `active → completed` on arrival; they persist
+  across turn ends (see Match lifecycle).
 - **Stamina** drains per mode (sprint fastest), never below 0; below 0.3 the top speed drops
   towards 70 %. No recovery or fatigue model yet.
 
@@ -157,7 +214,7 @@ packages/renderer/
                      MatchConfig ──► match-engine ◄── physics
                                          │
                                          ▼ immutable states (100 ticks per turn)
-                       interpolated [x, y, facing] frame + low-rate engine view
+                       interpolated [x, y, facing, waypoint] frame + low-rate engine view
                                          │
                                          ▼
                      renderer (Skia, display-rate)   mobile screens ◄──► Zustand (UI state only)

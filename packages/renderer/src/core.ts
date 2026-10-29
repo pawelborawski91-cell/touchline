@@ -33,4 +33,4 @@ export {
   screenDistanceTo,
 } from './interaction/hitTest';
 export type { PathHeading } from './path/pathGeometry';
-export { getPathEnd, pointsAlongPath } from './path/pathGeometry';
+export { getPathEnd, pointsAlongPath, remainingRoute } from './path/pathGeometry';

@@ -1,34 +1,55 @@
-import type { EngineView, MatchEngine } from '@touchline/match-engine';
+import type { EngineView, MatchEngine, PlayerDebugInfo } from '@touchline/match-engine';
 import { Platform, StyleSheet, Text, View } from 'react-native';
 
-import { useEngineTicker } from '../hooks/useMatchEngine';
+import { useEngineDebug } from '../hooks/useMatchEngine';
 
 interface DebugOverlayProps {
   engine: MatchEngine;
   view: EngineView;
+  selectedPlayerId: string | null;
 }
 
-/** Developer readout of the simulation: tick, turn, phase and per-player movement state. */
-export function DebugOverlay({ engine, view }: DebugOverlayProps) {
-  const info = useEngineTicker(engine, view);
-  const players = info.players.filter((p) => p.commandStatus !== null || p.speed > 0.01);
+function describeCommand(p: PlayerDebugInfo): string {
+  if (!p.commandStatus) return 'no command';
+  const waypoint =
+    p.waypointIndex !== null && p.waypointCount !== null
+      ? ` wp ${p.waypointIndex}/${p.waypointCount - 1}`
+      : '';
+  const progress = p.progress !== null ? ` ${(p.progress * 100).toFixed(0)}%` : '';
+  return `${p.commandStatus} ${p.movementMode ?? '-'}${waypoint}${progress}`;
+}
+
+/** Developer readout of the simulation: turn, phase, tick, command counts and movement state. */
+export function DebugOverlay({ engine, view, selectedPlayerId }: DebugOverlayProps) {
+  const info = useEngineDebug(engine, view, selectedPlayerId);
+  const { counts, selected } = info;
+  const others = info.players.filter((p) => p.playerId !== selectedPlayerId);
 
   return (
     <View style={styles.panel} pointerEvents="none">
       <Text style={styles.header}>
-        tick {info.tick} · turn {info.turn} · {info.phase} · {info.turnTick}/{info.ticksPerTurn}
+        turn {info.turn} · {info.phase}
+        {info.suspended ? ' (suspended)' : ''} · tick {info.tick}
       </Text>
-      {players.length === 0 ? (
-        <Text style={styles.line}>no moving players</Text>
-      ) : (
-        players.slice(0, 8).map((p) => (
-          <Text key={p.playerId} style={styles.line}>
-            #{String(p.shirtNumber).padEnd(2)} {p.role.padEnd(3)} {p.speed.toFixed(2)} m/s{' '}
-            {(p.movementMode ?? '-').padEnd(6)} {(p.commandStatus ?? '-').padEnd(9)} st{' '}
-            {p.staminaCurrent.toFixed(3)}
-          </Text>
-        ))
+      <Text style={styles.line}>
+        turn tick {info.turnTick}/{info.ticksPerTurn} · elapsed {info.turnSeconds.toFixed(2)} s
+      </Text>
+      <Text style={styles.line}>
+        active {counts.active} · queued {counts.queued} · paused {counts.paused} · done{' '}
+        {counts.completed} · cancelled {counts.cancelled + counts.interrupted}
+      </Text>
+      {selected && (
+        <Text style={[styles.line, styles.selected]}>
+          ▶ #{selected.shirtNumber} {selected.role} {selected.speed.toFixed(2)} m/s ·{' '}
+          {describeCommand(selected)} · st {selected.staminaCurrent.toFixed(3)}
+        </Text>
       )}
+      {others.slice(0, 6).map((p) => (
+        <Text key={p.playerId} style={styles.line}>
+          #{String(p.shirtNumber).padEnd(2)} {p.role.padEnd(3)} {p.speed.toFixed(2)} m/s ·{' '}
+          {describeCommand(p)}
+        </Text>
+      ))}
     </View>
   );
 }
@@ -56,5 +77,8 @@ const styles = StyleSheet.create({
     color: '#E6ECEF',
     fontSize: 10,
     fontFamily: MONO,
+  },
+  selected: {
+    color: '#8FE6FF',
   },
 });

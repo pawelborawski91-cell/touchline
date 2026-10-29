@@ -9,19 +9,37 @@ interface PlayerInfoPanelProps {
   snapshot: MatchSnapshot;
   player: MatchPlayer;
   command: PlayerCommand | undefined;
+  /** Path progress of the command, 0–1, once it has started. */
+  progress: number | null;
   mode: PlanningMode;
   editing: boolean;
 }
 
-function describeStatus(mode: PlanningMode, command: PlayerCommand | undefined, editing: boolean) {
+const STATUS_TONES: Partial<Record<PlayerCommand['status'], string>> = {
+  queued: colors.path,
+  active: colors.accent,
+  paused: colors.amber,
+  completed: colors.textMuted,
+};
+
+function describeStatus(
+  mode: PlanningMode,
+  command: PlayerCommand | undefined,
+  progress: number | null,
+  editing: boolean,
+) {
   if (mode === 'drawing_path') return { label: 'DRAWING', tone: colors.path };
-  if (mode === 'previewing_path')
-    return { label: editing ? 'EDITING' : 'DRAFT', tone: colors.path };
+  if (mode === 'previewing_path') {
+    const replacing = command !== undefined && command.status !== 'completed';
+    const label = editing ? 'EDITING' : replacing ? 'REPLACING' : 'DRAFT';
+    return { label, tone: colors.path };
+  }
   if (command) {
-    return {
-      label: `${command.status.toUpperCase()} · ${command.movementMode.toUpperCase()}`,
-      tone: colors.accent,
-    };
+    const parts = [command.status.toUpperCase(), command.movementMode.toUpperCase()];
+    if (progress !== null && command.status !== 'queued') {
+      parts.push(`${Math.round(progress * 100)}%`);
+    }
+    return { label: parts.join(' · '), tone: STATUS_TONES[command.status] ?? colors.textMuted };
   }
   return { label: 'NO COMMAND', tone: colors.textMuted };
 }
@@ -31,12 +49,13 @@ export function PlayerInfoPanel({
   snapshot,
   player,
   command,
+  progress,
   mode,
   editing,
 }: PlayerInfoPanelProps) {
   const side = getTeamSide(snapshot, player.teamId) ?? 'home';
   const team = side === 'home' ? snapshot.home : snapshot.away;
-  const status = describeStatus(mode, command, editing);
+  const status = describeStatus(mode, command, progress, editing);
   const { x, y } = player.position;
 
   return (

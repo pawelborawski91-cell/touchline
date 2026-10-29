@@ -1,19 +1,13 @@
-import type { MatchPhase, MatchSnapshot } from '@touchline/shared';
+import { PLAYER_FRAME_STRIDE, type MatchSnapshot } from '@touchline/shared';
 import { lerp, lerpAngle } from '@touchline/physics';
 
-import type { SimulationConfig, SimulationState, TurnPhase } from './SimulationState';
-
-const PHASE_TO_MATCH: Readonly<Record<TurnPhase, MatchPhase>> = {
-  planning: 'planning',
-  executing: 'execution',
-  turn_complete: 'planning',
-};
+import type { SimulationConfig, SimulationState } from './SimulationState';
 
 /** Read-only snapshot of one simulation state, in the shape the renderer consumes. */
 export function toMatchSnapshot(state: SimulationState, config: SimulationConfig): MatchSnapshot {
   return {
     tick: state.tick,
-    phase: PHASE_TO_MATCH[state.phase],
+    phase: state.phase,
     clockSeconds: state.tick * config.match.fixedDeltaTime,
     ...state.context,
     players: state.players,
@@ -50,8 +44,9 @@ export function interpolateSnapshot(
 }
 
 /**
- * Writes interpolated `[x, y, facing]` triples (player order) into `out`, without allocating a
- * snapshot. This is what the render loop uses every frame.
+ * Writes the interpolated per-player frame (`PLAYER_FRAME_STRIDE` values each, snapshot order:
+ * x, y, facing, current waypoint index or -1) into `out` without allocating a snapshot. This is
+ * what the render loop uses every frame.
  */
 export function writeInterpolatedFrame(
   previous: SimulationState,
@@ -60,12 +55,17 @@ export function writeInterpolatedFrame(
   out: number[],
 ): number[] {
   const t = Math.min(Math.max(alpha, 0), 1);
-  out.length = current.players.length * 3;
+  out.length = current.players.length * PLAYER_FRAME_STRIDE;
   current.players.forEach((player, i) => {
     const before = previous.players[i] ?? player;
-    out[i * 3] = before.position.x + (player.position.x - before.position.x) * t;
-    out[i * 3 + 1] = before.position.y + (player.position.y - before.position.y) * t;
-    out[i * 3 + 2] = lerpAngle(before.facing, player.facing, t);
+    const base = i * PLAYER_FRAME_STRIDE;
+    const pathState = player.activeCommandId
+      ? current.pathStates[player.activeCommandId]
+      : undefined;
+    out[base] = before.position.x + (player.position.x - before.position.x) * t;
+    out[base + 1] = before.position.y + (player.position.y - before.position.y) * t;
+    out[base + 2] = lerpAngle(before.facing, player.facing, t);
+    out[base + 3] = player.activeCommandId ? (pathState?.currentWaypointIndex ?? 1) : -1;
   });
   return out;
 }

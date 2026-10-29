@@ -44,8 +44,8 @@ interface MatchViewProps {
   /** World-space content drawn above the markers and ball. */
   renderOverlay?: (context: WorldLayerContext) => ReactNode;
   /**
-   * Optional live `[x, y, facing]` per player, in `snapshot.players` order, written by a
-   * simulation loop. Markers follow it on the UI thread without React re-renders.
+   * Optional live player frame (`PLAYER_FRAME_STRIDE` values per player, `snapshot.players`
+   * order), written by a simulation loop. Markers follow it on the UI thread without re-renders.
    */
   playerFrame?: SharedValue<readonly number[]>;
   style?: StyleProp<ViewStyle>;

@@ -197,6 +197,8 @@ describe('select → draw → confirm → edit flow', () => {
       createdAtTick: 0,
       priority: 50,
       interruptible: true,
+      startedTurn: null,
+      endedTurn: null,
     };
     expect(reducePlanning(ui, { type: 'editCommand', command })).toBe(ui);
   });

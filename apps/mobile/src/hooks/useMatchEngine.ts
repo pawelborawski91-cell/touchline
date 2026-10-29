@@ -1,21 +1,27 @@
-import { MatchEngine, type EngineDebugInfo, type EngineView } from '@touchline/match-engine';
+import {
+  MatchEngine,
+  type EngineDebugInfo,
+  type EngineView,
+  type TurnSnapshot,
+} from '@touchline/match-engine';
 import { createInitialMatch } from '@touchline/shared';
-import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
+import { useEffect, useMemo, useRef, useSyncExternalStore } from 'react';
 import { AppState } from 'react-native';
 import { useSharedValue, type SharedValue } from 'react-native-reanimated';
 
 export interface MatchEngineHandle {
   engine: MatchEngine;
-  /** Low-frequency engine view: plan, phase and turn. Re-renders only when they change. */
+  /** Low-frequency engine view: plan, phase, turn, suspension. */
   view: EngineView;
-  /** Interpolated `[x, y, facing]` per player, written every frame while executing. */
+  /** Interpolated player frame (`PLAYER_FRAME_STRIDE` values per player), written every frame. */
   playerFrame: SharedValue<readonly number[]>;
 }
 
 /**
- * Owns one MatchEngine for the screen and drives its fixed-timestep loop with
- * requestAnimationFrame while a turn is executing. The loop only feeds real frame time to the
- * engine and copies interpolated positions to the UI thread; it never touches simulation state.
+ * Owns the screen's single MatchEngine and drives its fixed-timestep loop with
+ * requestAnimationFrame, only while executing and not suspended. The loop feeds real frame time
+ * to the engine and copies the interpolated frame to the UI thread; it never touches simulation
+ * state. Leaving the foreground suspends execution, which then needs an explicit RESUME.
  */
 export function useMatchEngine(): MatchEngineHandle {
   const engineRef = useRef<MatchEngine | null>(null);
@@ -30,45 +36,49 @@ export function useMatchEngine(): MatchEngineHandle {
   }, [engine, playerFrame, view]);
 
   useEffect(() => {
-    if (view.phase !== 'executing') return undefined;
+    const subscription = AppState.addEventListener('change', (state) => {
+      if (state !== 'active') engine.suspend();
+    });
+    return () => subscription.remove();
+  }, [engine]);
+
+  const running = view.phase === 'execution' && !view.suspended;
+  useEffect(() => {
+    if (!running) return undefined;
     let frameId = 0;
     let last: number | null = null;
     const loop = (now: number) => {
-      // The first frame (and the first after returning from background) only sets the baseline.
+      // The first frame only sets the baseline, so the time before it is never simulated.
       const dt = last === null ? 0 : (now - last) / 1000;
       last = now;
       engine.advanceFrame(dt);
       playerFrame.value = engine.writeFrame([]);
-      if (engine.getState().phase === 'executing') frameId = requestAnimationFrame(loop);
+      if (engine.getState().phase === 'execution' && !engine.isSuspended) {
+        frameId = requestAnimationFrame(loop);
+      }
     };
     frameId = requestAnimationFrame(loop);
-    const subscription = AppState.addEventListener('change', (state) => {
-      if (state === 'active') last = null;
-    });
-    return () => {
-      cancelAnimationFrame(frameId);
-      subscription.remove();
-    };
-  }, [engine, playerFrame, view.phase]);
+    return () => cancelAnimationFrame(frameId);
+  }, [engine, playerFrame, running]);
 
   return { engine, view, playerFrame };
 }
 
-const TICKER_INTERVAL_MS = 100;
+/** Turn timing, re-rendering once per simulated tick (the countdown follows simulation time). */
+export function useTurnSnapshot(engine: MatchEngine): TurnSnapshot {
+  return useSyncExternalStore(engine.subscribeTicks, engine.getTurnSnapshot);
+}
 
-/**
- * Engine debug info for HUD text (clock, progress, debug overlay). Polls at 10 Hz while
- * executing so only the components that use it re-render, never the pitch.
- */
-export function useEngineTicker(engine: MatchEngine, view: EngineView): EngineDebugInfo {
-  const [info, setInfo] = useState(() => engine.getDebugInfo());
-
-  useEffect(() => {
-    setInfo(engine.getDebugInfo());
-    if (view.phase !== 'executing') return undefined;
-    const id = setInterval(() => setInfo(engine.getDebugInfo()), TICKER_INTERVAL_MS);
-    return () => clearInterval(id);
-  }, [engine, view]);
-
-  return info;
+/** Engine debug readout, refreshed with every simulated tick and every view change. */
+export function useEngineDebug(
+  engine: MatchEngine,
+  view: EngineView,
+  selectedPlayerId: string | null,
+): EngineDebugInfo {
+  const turn = useTurnSnapshot(engine);
+  // `turn` and `view` are new objects whenever the engine state changes.
+  return useMemo(
+    () => engine.getDebugInfo(selectedPlayerId),
+    [engine, selectedPlayerId, turn, view],
+  );
 }

@@ -1,5 +1,5 @@
 import { BlurMask, Circle, Group } from '@shopify/react-native-skia';
-import type { Vector2 } from '@touchline/shared';
+import { PLAYER_FRAME_STRIDE, type Vector2 } from '@touchline/shared';
 import { useDerivedValue, type SharedValue } from 'react-native-reanimated';
 
 import { PLAYER_MARKER_RADIUS } from '../../interaction/hitTest';
@@ -11,16 +11,29 @@ interface PlayerSelectionRingProps {
   /** World position of the selected player. */
   position: Vector2;
   inverseScale: SharedValue<number>;
+  /** Optional live player frame; the ring follows the player while the simulation runs. */
+  frame?: SharedValue<readonly number[]>;
+  frameIndex?: number;
 }
 
 /** Subtle ring around the selected marker; constant screen size like the marker itself. */
-export function PlayerSelectionRing({ position, inverseScale }: PlayerSelectionRingProps) {
+export function PlayerSelectionRing({
+  position,
+  inverseScale,
+  frame,
+  frameIndex = -1,
+}: PlayerSelectionRingProps) {
   const { x, y } = position;
-  const transform = useDerivedValue(() => [
-    { translateX: x },
-    { translateY: y },
-    { scale: inverseScale.value },
-  ]);
+  const transform = useDerivedValue(() => {
+    const values = frame?.value;
+    const base = frameIndex * PLAYER_FRAME_STRIDE;
+    const live = values !== undefined && frameIndex >= 0 && values.length > base + 1;
+    return [
+      { translateX: live ? values[base]! : x },
+      { translateY: live ? values[base + 1]! : y },
+      { scale: inverseScale.value },
+    ];
+  });
   const radius = PLAYER_MARKER_RADIUS + RING_GAP;
 
   return (

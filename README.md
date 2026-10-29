@@ -5,10 +5,11 @@ Both sides plan at the same time, then the plans play out in continuous simulati
 105 × 68 m pitch. The match engine is plain TypeScript and does not depend on the mobile UI.
 Rendering uses React Native Skia.
 
-**Status: Sprint 3, movement physics and execution.** The app opens a landscape match view: a
-105 × 68 m Skia pitch with both 4-3-3 line-ups (NORTH CITY vs SOUTH UNITED) under a touch camera.
-You plan movement for any player, then execute the turn and watch the players run their paths with
-acceleration, turning, braking and momentum. There is no ball play, opponent AI or networking yet.
+**Status: Sprint 4, turn controller and persistent commands.** The app opens a landscape match
+view: a 105 × 68 m Skia pitch with both 4-3-3 line-ups (NORTH CITY vs SOUTH UNITED) under a touch
+camera. The match runs as a repeating cycle of planning, commit and 5 s of execution, with players
+moving under acceleration, turning, braking and momentum. Runs carry over between turns without
+being reset. There is no ball play, opponent AI or networking yet.
 
 On the match view:
 
@@ -17,9 +18,15 @@ On the match view:
 - **Tap** a player to select them, then **drag from the player** to draw a path. Adjust the draft
   with Undo / Clear / Cancel, set its pace with **Pace** (walk, jog, run, sprint; default run), and
   **Confirm** to queue it. A queued command can be edited or cancelled.
-- **START EXECUTION** commits the plan and simulates one 5 s turn (100 fixed 20 Hz ticks, rendered
-  at display rate with interpolation). Runs that do not finish pause and continue next turn.
-- **NEXT TURN** returns to planning. **DBG** (top right) toggles a simulation debug overlay.
+- **COMMIT PLANS** validates the plan, locks editing and simulates one 5 s turn (100 fixed 20 Hz
+  ticks, rendered at display rate with interpolation). The countdown follows simulation time.
+- After the window the match returns to planning automatically with the next turn number. Runs
+  that have not finished stay **active** and are drawn from the player onwards only. Drawing a
+  new route for such a player replaces the run from where they are now, keeping their momentum.
+  **Cancel cmd** stops it.
+- Leaving the app mid-turn pauses execution; **RESUME** continues from the same tick.
+- **DBG** (top right) toggles a debug overlay (turn, phase, tick, command counts, the selected
+  player's waypoint and progress) and shows cancelled routes.
 
 - [Game design](docs/GDD.md)
 - [Architecture & package boundaries](docs/ARCHITECTURE.md)

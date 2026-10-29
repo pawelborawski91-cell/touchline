@@ -7,4 +7,5 @@ export const colors = {
   accent: '#C8F560',
   path: '#5CE1FF',
   danger: '#E2665C',
+  amber: '#E8B052',
 } as const;

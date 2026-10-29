@@ -1,41 +1,56 @@
-import type { MatchEngine, EngineView } from '@touchline/match-engine';
+import type { EngineView, MatchEngine } from '@touchline/match-engine';
 import { StyleSheet, Text, View } from 'react-native';
 
-import { useEngineTicker } from '../hooks/useMatchEngine';
+import { useTurnSnapshot } from '../hooks/useMatchEngine';
 import { colors } from '../theme/colors';
 import { ControlButton } from './PlanningControls';
 
 interface ExecutionBarProps {
   engine: MatchEngine;
   view: EngineView;
-  onNextTurn: () => void;
+  /** Shows the developer-only stoppage control. */
+  debug: boolean;
 }
 
-/** Bottom strip while a turn runs (progress) and once it has finished (NEXT TURN). */
-export function ExecutionBar({ engine, view, onNextTurn }: ExecutionBarProps) {
-  const info = useEngineTicker(engine, view);
-  const progress = Math.min(info.turnTick / info.ticksPerTurn, 1);
-  const executing = view.phase === 'executing';
-  const turnLength = info.ticksPerTurn * engine.config.match.fixedDeltaTime;
-  const count = (status: string) => info.players.filter((p) => p.commandStatus === status).length;
+/**
+ * Bottom strip outside planning: execution countdown and progress (both from simulation ticks),
+ * the background-suspension notice, stoppage and the finished state. No editing controls.
+ */
+export function ExecutionBar({ engine, view, debug }: ExecutionBarProps) {
+  const turn = useTurnSnapshot(engine);
+
+  if (view.phase === 'stoppage') {
+    return (
+      <View style={styles.row}>
+        <Text style={[styles.title, styles.amber]}>STOPPAGE</Text>
+        <Text style={styles.summary}>Play stopped; running commands are paused.</Text>
+        <View style={styles.spacer} />
+        <ControlButton label="RETURN TO PLANNING" onPress={() => engine.endStoppage()} />
+      </View>
+    );
+  }
+  if (view.phase === 'finished') {
+    return (
+      <View style={styles.row}>
+        <Text style={styles.title}>MATCH FINISHED</Text>
+      </View>
+    );
+  }
 
   return (
     <View style={styles.row}>
-      <Text style={[styles.title, executing && styles.titleLive]}>
-        {executing ? `EXECUTING TURN ${view.turn}` : `TURN ${view.turn} COMPLETE`}
+      <Text style={[styles.title, view.suspended ? styles.amber : styles.live]}>
+        {view.suspended ? 'PAUSED' : 'EXECUTING'}
       </Text>
       <View style={styles.track}>
-        <View style={[styles.fill, { width: `${progress * 100}%` }]} />
+        <View style={[styles.fill, { width: `${turn.progress * 100}%` }]} />
       </View>
-      <Text style={styles.time}>
-        {info.turnSeconds.toFixed(1)} / {turnLength.toFixed(1)} s
-      </Text>
-      <Text style={styles.summary} numberOfLines={1}>
-        {executing
-          ? `${count('active')} moving · ${count('completed')} arrived`
-          : `${count('completed')} arrived · ${count('paused')} continue next turn`}
-      </Text>
-      {!executing && <ControlButton label="NEXT TURN" onPress={onNextTurn} tone="go" />}
+      <Text style={styles.countdown}>{turn.remainingSeconds.toFixed(1)} s</Text>
+      {view.suspended ? (
+        <ControlButton label="RESUME" onPress={() => engine.resume()} tone="go" />
+      ) : (
+        debug && <ControlButton label="Stoppage" onPress={() => engine.callStoppage()} />
+      )}
     </View>
   );
 }
@@ -53,8 +68,11 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     letterSpacing: 1.5,
   },
-  titleLive: {
+  live: {
     color: colors.accent,
+  },
+  amber: {
+    color: colors.amber,
   },
   track: {
     flex: 1,
@@ -68,17 +86,20 @@ const styles = StyleSheet.create({
     borderRadius: 3,
     backgroundColor: colors.accent,
   },
-  time: {
+  countdown: {
     color: colors.textPrimary,
-    fontSize: 12,
-    fontWeight: '600',
+    fontSize: 14,
+    fontWeight: '700',
     fontVariant: ['tabular-nums'],
-    minWidth: 70,
+    minWidth: 48,
     textAlign: 'right',
   },
   summary: {
     color: colors.textMuted,
     fontSize: 12,
     fontWeight: '600',
+  },
+  spacer: {
+    flex: 1,
   },
 });
