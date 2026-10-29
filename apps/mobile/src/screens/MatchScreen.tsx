@@ -137,7 +137,7 @@ function hintFor(mode: PlanningMode, hasCommand: boolean): string {
     case 'drawing_path':
       return 'Release to preview';
     default:
-      return 'Confirm, or drag from the player to redraw';
+      return 'Drag to redraw';
   }
 }
 
