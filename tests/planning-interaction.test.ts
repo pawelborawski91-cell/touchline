@@ -193,6 +193,7 @@ describe('select → draw → confirm → edit flow', () => {
       type: 'move' as const,
       status: 'queued' as const,
       path: STROKE,
+      movementMode: 'run' as const,
       createdAtTick: 0,
       priority: 50,
       interruptible: true,
@@ -236,5 +237,41 @@ describe('gesture arbitration', () => {
 
   it('a pinch during a pan zooms', () => {
     expect(resolvePinchStart('pan', false)).toEqual({ intent: 'pan', allowZoom: true });
+  });
+});
+
+describe('movement mode', () => {
+  it('defaults the preview to run and changes it only while previewing', () => {
+    const previewing = drawn();
+    expect(previewing.activeCommandPreview?.movementMode).toBe('run');
+    const sprint = reducePlanning(previewing, { type: 'setMovementMode', mode: 'sprint' });
+    expect(sprint.activeCommandPreview?.movementMode).toBe('sprint');
+    expect(sprint.currentDraftPath).toEqual(previewing.currentDraftPath);
+    const selected = run([{ type: 'tapPlayer', playerId: 'home-9' }]);
+    expect(reducePlanning(selected, { type: 'setMovementMode', mode: 'walk' })).toBe(selected);
+  });
+
+  it('keeps the chosen mode when the path is redrawn', () => {
+    const sprint = reducePlanning(drawn(), { type: 'setMovementMode', mode: 'sprint' });
+    const redrawn = run(
+      [{ type: 'drawStart' }, { type: 'drawEnd', start: START, points: STROKE }],
+      sprint,
+    );
+    expect(redrawn.activeCommandPreview?.movementMode).toBe('sprint');
+  });
+
+  it('loads the command’s mode when editing a queued command', () => {
+    const book = commandReducer(createCommandBook(), {
+      type: 'replaceMovement',
+      playerId: 'home-9',
+      path: [START, ...STROKE],
+      movementMode: 'jog',
+    });
+    const command = getMovementCommand(book, 'home-9')!;
+    const editing = run([
+      { type: 'tapPlayer', playerId: 'home-9' },
+      { type: 'editCommand', command },
+    ]);
+    expect(editing.activeCommandPreview?.movementMode).toBe('jog');
   });
 });

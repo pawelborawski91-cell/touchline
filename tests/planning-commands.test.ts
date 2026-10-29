@@ -37,6 +37,7 @@ describe('createMoveCommand', () => {
       createdAtTick: 0,
       priority: DEFAULT_COMMAND_PRIORITY,
       interruptible: true,
+      movementMode: 'run',
     });
     expect(DEFAULT_COMMAND_PRIORITY).toBe(50);
   });

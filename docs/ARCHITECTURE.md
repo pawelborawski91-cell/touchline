@@ -26,14 +26,14 @@ consume the source.
 
 ## Package responsibilities
 
-| Package                   | Responsibility                                                               | Status (Sprint 1)                                                      |
-| ------------------------- | ---------------------------------------------------------------------------- | ---------------------------------------------------------------------- |
-| `@touchline/shared`       | Common domain types (`Vector2`, `PlayerState`, `MatchSnapshot`, …) and data. | Types, field constants, `DEFAULT_MATCH_CONFIG`, initial 4-3-3 fixture. |
-| `@touchline/physics`      | Movement integration, collisions, ball physics. No rendering knowledge.      | Empty.                                                                 |
-| `@touchline/match-engine` | Authoritative fixed-timestep simulation; produces snapshots.                 | Empty.                                                                 |
-| `@touchline/planning`     | Building and validating player commands and trajectories during planning.    | Empty.                                                                 |
-| `@touchline/renderer`     | Skia rendering of snapshots, camera, world↔screen transforms.                | Pitch, goals, player and ball markers, pan/pinch camera (see below).   |
-| `@touchline/mobile`       | Screens, input, UI state, persistence; wires packages together.              | Match screen: info bar, `MatchView`, status label.                     |
+| Package                   | Responsibility                                                               | Status (Sprint 3)                                                                                 |
+| ------------------------- | ---------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| `@touchline/shared`       | Common domain types (`Vector2`, `PlayerState`, `MatchSnapshot`, …) and data. | Types, field constants, movement attributes and modes, command model and manager, 4-3-3 fixture.  |
+| `@touchline/physics`      | Movement integration, collisions, ball physics. No rendering knowledge.      | Vector/angle maths, steering, player movement integrator, path follower, movement modes, stamina. |
+| `@touchline/match-engine` | Authoritative fixed-timestep simulation; produces snapshots.                 | Simulation state and step, turn controller, fixed-timestep clock, interpolation, `MatchEngine`.   |
+| `@touchline/planning`     | Building and validating player commands and trajectories during planning.    | Path sampling/validation, planning UI state machine, gesture arbitration; re-exports commands.    |
+| `@touchline/renderer`     | Skia rendering of snapshots, camera, world↔screen transforms.                | Pitch, markers (live frames), movement paths, selection ring, pan/pinch camera.                   |
+| `@touchline/mobile`       | Screens, input, UI state, persistence; wires packages together.              | Match screen: planning, execution loop, turn controls, debug overlay.                             |
 
 ## Dependency boundaries
 
@@ -48,7 +48,7 @@ physics       ──► shared
 shared        ──► (nothing)
 ```
 
-Declared today: `mobile → shared, renderer`, `physics → shared`, `match-engine → shared, physics`,
+Declared today: `mobile → shared, match-engine, planning, renderer`, `physics → shared`, `match-engine → shared, physics`,
 `planning → shared`, `renderer → shared`. The renderer additionally declares Skia, React, React
 Native, Reanimated and Gesture Handler as **peer** dependencies (dev copies pinned to the app's
 exact versions so pnpm links a single install).
@@ -59,8 +59,10 @@ Rules:
    It may depend only on `shared` and `physics`.
 2. `physics` is independent from rendering and may depend only on `shared`.
 3. `shared` depends on nothing in the workspace.
-4. `planning` will own player commands and trajectories; it depends only on `shared`. Command
-   _types_ that the engine consumes belong in `shared`, so the engine never imports `planning`.
+4. `planning` owns the planning interaction (drawing, validation, UI state machine); it depends
+   only on `shared`. The command model and its manager live in `shared` (`shared/src/commands`)
+   because the engine consumes them, so the engine never imports `planning`; `planning`
+   re-exports them for UI code.
 5. `renderer` contains the Skia rendering logic. It reads `MatchSnapshot`s and never mutates them,
    and it may depend only on `shared` (never on the engine, physics or planning).
 6. Zustand stores (in `apps/mobile/src/stores`) hold UI state only — selection, panels —
@@ -95,7 +97,7 @@ packages/renderer/
     ├── camera/
     │   ├── cameraTransforms.ts  fit scale, view transform, zoom/centre clamping, pan, focal zoom
     │   └── CameraController.ts  useCameraController: shared values + pan/pinch/double-tap
-    ├── components/        MatchView, Pitch, Goal, PlayerMarker, BallMarker
+    ├── components/        MatchView, Pitch, Goal, PlayerMarker, BallMarker, planning/ paths + ring
     └── theme/palette.ts   pitch colours and team marker kits
 ```
 
@@ -113,27 +115,52 @@ packages/renderer/
 
 ## Simulation / rendering separation
 
-- The match engine is a pure TypeScript state machine, advanced in fixed 0.05 s ticks. It runs
-  identically in Node (tests, future server) and on device.
-- After ticks, the engine exposes immutable **snapshots** (positions, velocities, phase, …).
-- The renderer interpolates between snapshots at display rate (60 FPS) and draws with Skia. It
-  holds no authoritative state.
-- UI (React components + Zustand) reads snapshots for display and turns user input into planning
-  commands; it never edits simulation state directly.
+- The match engine is a pure TypeScript state machine, advanced in fixed 0.05 s ticks (20 Hz).
+  It runs identically in Node (tests, future server) and on device. Every step returns a new
+  immutable `SimulationState`; identical inputs give identical results.
+- Turn phases: `planning` → `executing` (exactly 100 ticks = 5 s) → `turn_complete` → `planning`
+  of the next turn. The simulation only advances while executing.
+- `MatchEngine.advanceFrame(realDt)` feeds real frame time into an accumulator
+  (`SimulationClock`): frames longer than 0.25 s are clamped (backgrounding), at most 5 steps run
+  per frame, and the remainder is the interpolation factor. Frame rate never changes the result.
+- The app's render loop (`useMatchEngine`, `requestAnimationFrame`, only while executing) calls
+  `advanceFrame`, then `writeFrame` copies interpolated `[x, y, facing]` per player into a
+  Reanimated shared value. `PlayerMarker` reads it on the UI thread, so movement needs no React
+  re-render. HUD text polls `getDebugInfo()` at 10 Hz.
+- UI (React components + Zustand) reads the engine view for display and turns user input into
+  command actions (`engine.dispatchCommand`, planning phase only); it never edits simulation state.
 
-## Planned data flow
+## Movement model (Sprint 3)
+
+- **Attributes** (`PlayerMovementAttributes`): max speed 5.5–8.5 m/s, acceleration 2–4 m/s²,
+  deceleration 3–6 m/s², agility 0.5–1, turning speed 180–360 °/s, stamina (endurance) 0–1.
+- **Modes** cap speed at a share of max speed: walk 0.35, jog 0.55, run 0.80, sprint 1.0.
+- **Integrator** (`stepMovement`): velocity always points along the heading. Each step turns the
+  heading towards the desired direction at a speed-dependent rate, eases the target speed while
+  misaligned, changes speed by at most acceleration·dt (tapering near top speed) or
+  deceleration·dt, moves with semi-implicit Euler and clamps to the pitch.
+- **Path follower**: targets the next waypoint (advancing inside a 1 m arrival radius or once
+  passed, never snapping), limits speed so the player can brake for upcoming corners and for the
+  end (`v = √(v_exit² + 2·a·0.85·d)`), and completes once within 0.25 m and below 0.1 m/s.
+- **Commands**: `queued → active` at execution start, `active → completed` on arrival,
+  `active → paused` at turn end (resumed next turn), `cancelled` on demand. At most one active
+  movement command per player; confirming a new one replaces the queued/paused one.
+- **Stamina** drains per mode (sprint fastest), never below 0; below 0.3 the top speed drops
+  towards 70 %. No recovery or fatigue model yet.
+
+## Data flow
 
 ```
- user input ──► planning (commands, trajectories) ──► command data (shared types)
+ user input ──► planning (draw, validate, preview) ──► CommandAction (shared types)
                                                             │
                                                             ▼
                      MatchConfig ──► match-engine ◄── physics
                                          │
-                                         ▼ immutable snapshots (100 per turn)
-                                     renderer (Skia, 60 FPS interpolation)
+                                         ▼ immutable states (100 ticks per turn)
+                       interpolated [x, y, facing] frame + low-rate engine view
                                          │
                                          ▼
-                                   mobile screens  ◄──► Zustand (UI state only)
+                     renderer (Skia, display-rate)   mobile screens ◄──► Zustand (UI state only)
 ```
 
 Persistence (`expo-sqlite`) lives in the mobile app and stores serialized configs/results, not live

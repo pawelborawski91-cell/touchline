@@ -2,7 +2,7 @@
  * Visual variants for movement paths. Sizes are screen pixels and are converted to world units
  * with the camera's inverse scale, so paths keep their weight at every zoom.
  */
-export type MovementPathVariant = 'draft' | 'selected' | 'queued';
+export type MovementPathVariant = 'draft' | 'selected' | 'queued' | 'active' | 'completed';
 
 export interface MovementPathStyle {
   color: string;
@@ -49,6 +49,30 @@ export const MOVEMENT_PATH_STYLES: Readonly<Record<MovementPathVariant, Movement
     arrowHalfWidth: 4.5,
     endpointRadius: 4,
     endpointFill: 'rgba(170, 222, 240, 0.18)',
+    chevronSpacing: 0,
+  },
+  /** Being executed right now. */
+  active: {
+    color: '#B8F36B',
+    width: 2.5,
+    glowColor: 'rgba(184, 243, 107, 0.3)',
+    glowWidth: 7,
+    arrowLength: 9,
+    arrowHalfWidth: 5,
+    endpointRadius: 5,
+    endpointFill: 'rgba(184, 243, 107, 0.2)',
+    chevronSpacing: 0,
+  },
+  /** Finished this turn; kept as a faint trace. */
+  completed: {
+    color: 'rgba(200, 225, 235, 0.22)',
+    width: 1.5,
+    glowColor: null,
+    glowWidth: 0,
+    arrowLength: 0,
+    arrowHalfWidth: 0,
+    endpointRadius: 3,
+    endpointFill: 'rgba(200, 225, 235, 0.12)',
     chevronSpacing: 0,
   },
 };

@@ -1,11 +1,16 @@
-import type { Vector2 } from '@touchline/shared';
-
+import type { Vector2 } from '../math';
+import type { MovementMode } from '../player';
 import { createMoveCommand } from './CommandFactory';
-import { isLiveMovementCommand, type CommandStatus, type PlayerCommand } from './PlayerCommand';
+import {
+  isFinishedCommand,
+  isLiveMovementCommand,
+  type CommandStatus,
+  type PlayerCommand,
+} from './PlayerCommand';
 
 /**
  * Immutable store of planned commands. Every operation returns a new book and never mutates the
- * previous one, so it works as React state and in tests alike. Commands are stored, not executed.
+ * previous one, so it works as React state, inside the simulation and in tests alike.
  */
 export interface CommandBook {
   readonly commands: readonly PlayerCommand[];
@@ -32,6 +37,16 @@ export function getMovementCommand(book: CommandBook, playerId: string): PlayerC
   );
 }
 
+export function getActiveMovementCommand(
+  book: CommandBook,
+  playerId: string,
+): PlayerCommand | undefined {
+  return book.commands.find(
+    (command) =>
+      command.playerId === playerId && command.type === 'move' && command.status === 'active',
+  );
+}
+
 export function getLiveMovementCommands(book: CommandBook): PlayerCommand[] {
   return book.commands.filter(isLiveMovementCommand);
 }
@@ -41,18 +56,24 @@ export interface CreateDraftResult {
   command: PlayerCommand;
 }
 
+export interface DraftOptions {
+  createdAtTick?: number;
+  movementMode?: MovementMode;
+}
+
 /** Adds a draft move command, replacing any earlier draft for the same player. */
 export function createDraft(
   book: CommandBook,
   playerId: string,
   path: readonly Vector2[],
-  createdAtTick = 0,
+  options: DraftOptions = {},
 ): CreateDraftResult {
   const command = createMoveCommand({
     id: `cmd-${book.nextSequence}`,
     playerId,
     path,
-    createdAtTick,
+    createdAtTick: options.createdAtTick,
+    movementMode: options.movementMode,
   });
   const commands = book.commands.filter(
     (existing) => !(existing.playerId === playerId && existing.status === 'draft'),
@@ -96,9 +117,9 @@ export function replaceMovementCommand(
   book: CommandBook,
   playerId: string,
   path: readonly Vector2[],
-  createdAtTick = 0,
+  options: DraftOptions = {},
 ): CreateDraftResult {
-  const created = createDraft(book, playerId, path, createdAtTick);
+  const created = createDraft(book, playerId, path, options);
   const confirmed = confirmDraft(created.book, created.command.id);
   const command = getCommand(confirmed, created.command.id) ?? created.command;
   return { book: confirmed, command };
@@ -107,7 +128,7 @@ export function replaceMovementCommand(
 /** Marks a draft or live command as cancelled; finished commands are left alone. */
 export function cancelCommand(book: CommandBook, commandId: string): CommandBook {
   const command = getCommand(book, commandId);
-  if (!command || command.status === 'completed' || command.status === 'cancelled') return book;
+  if (!command || isFinishedCommand(command)) return book;
   return withStatus(book, commandId, 'cancelled');
 }
 
@@ -116,25 +137,88 @@ export function removeCommand(book: CommandBook, commandId: string): CommandBook
   return { ...book, commands: book.commands.filter((command) => command.id !== commandId) };
 }
 
+/**
+ * `queued → active` or `paused → active`. Refused (book unchanged) when the player already has
+ * a different active movement command, so a player never runs two at once.
+ */
+export function activateCommand(book: CommandBook, commandId: string): CommandBook {
+  const command = getCommand(book, commandId);
+  if (!command || (command.status !== 'queued' && command.status !== 'paused')) return book;
+  const active = getActiveMovementCommand(book, command.playerId);
+  if (active && active.id !== commandId) return book;
+  return withStatus(book, commandId, 'active');
+}
+
+/** `paused → active`. */
+export function resumeCommand(book: CommandBook, commandId: string): CommandBook {
+  return getCommand(book, commandId)?.status === 'paused' ? activateCommand(book, commandId) : book;
+}
+
+/** `active → paused`. */
+export function pauseCommand(book: CommandBook, commandId: string): CommandBook {
+  return getCommand(book, commandId)?.status === 'active'
+    ? withStatus(book, commandId, 'paused')
+    : book;
+}
+
+/** `active → completed`. */
+export function completeCommand(book: CommandBook, commandId: string): CommandBook {
+  return getCommand(book, commandId)?.status === 'active'
+    ? withStatus(book, commandId, 'completed')
+    : book;
+}
+
+/** Activates every queued or paused command; used when execution starts. */
+export function activateLiveCommands(book: CommandBook): CommandBook {
+  return book.commands
+    .filter((command) => command.status === 'queued' || command.status === 'paused')
+    .reduce((next, command) => activateCommand(next, command.id), book);
+}
+
+/** Pauses every active command; used when execution stops mid-command. */
+export function pauseActiveCommands(book: CommandBook): CommandBook {
+  return book.commands
+    .filter((command) => command.status === 'active')
+    .reduce((next, command) => pauseCommand(next, command.id), book);
+}
+
+/** Drops completed, cancelled and interrupted commands. */
+export function pruneFinishedCommands(book: CommandBook): CommandBook {
+  if (!book.commands.some(isFinishedCommand)) return book;
+  return { ...book, commands: book.commands.filter((command) => !isFinishedCommand(command)) };
+}
+
 export type CommandAction =
-  | { type: 'createDraft'; playerId: string; path: readonly Vector2[]; createdAtTick?: number }
+  | ({ type: 'createDraft'; playerId: string; path: readonly Vector2[] } & DraftOptions)
   | { type: 'confirmDraft'; commandId: string }
-  | { type: 'replaceMovement'; playerId: string; path: readonly Vector2[]; createdAtTick?: number }
+  | ({ type: 'replaceMovement'; playerId: string; path: readonly Vector2[] } & DraftOptions)
   | { type: 'cancel'; commandId: string }
-  | { type: 'remove'; commandId: string };
+  | { type: 'remove'; commandId: string }
+  | { type: 'activate'; commandId: string }
+  | { type: 'pause'; commandId: string }
+  | { type: 'resume'; commandId: string }
+  | { type: 'complete'; commandId: string };
 
 /** Reducer form of the manager, for `useReducer` or any other state container. */
 export function commandReducer(book: CommandBook, action: CommandAction): CommandBook {
   switch (action.type) {
     case 'createDraft':
-      return createDraft(book, action.playerId, action.path, action.createdAtTick).book;
+      return createDraft(book, action.playerId, action.path, action).book;
     case 'confirmDraft':
       return confirmDraft(book, action.commandId);
     case 'replaceMovement':
-      return replaceMovementCommand(book, action.playerId, action.path, action.createdAtTick).book;
+      return replaceMovementCommand(book, action.playerId, action.path, action).book;
     case 'cancel':
       return cancelCommand(book, action.commandId);
     case 'remove':
       return removeCommand(book, action.commandId);
+    case 'activate':
+      return activateCommand(book, action.commandId);
+    case 'pause':
+      return pauseCommand(book, action.commandId);
+    case 'resume':
+      return resumeCommand(book, action.commandId);
+    case 'complete':
+      return completeCommand(book, action.commandId);
   }
 }

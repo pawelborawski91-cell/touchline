@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@shopify/react-native-skia": "2.14.0",
+    "@touchline/match-engine": "workspace:*",
     "@touchline/planning": "workspace:*",
     "@touchline/renderer": "workspace:*",
     "@touchline/shared": "workspace:*",

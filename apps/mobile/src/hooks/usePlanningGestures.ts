@@ -20,17 +20,19 @@ import { usePlayerSelection } from './usePlayerSelection';
  * 3. A one-finger drag that lands on the selected player draws a path.
  * 4. Any other one-finger drag pans the camera.
  *
- * Double tap keeps its Sprint 1 role (zoom in / reset).
+ * Double tap keeps its Sprint 1 role (zoom in / reset). Outside planning only the camera
+ * gestures act: there is no draw anchor and taps do not select.
  */
 export function usePlanningGestures(
   snapshot: MatchSnapshot,
   camera: CameraController,
   drawAnchor: Vector2 | null,
+  selectionEnabled: boolean,
 ) {
   const { handlers } = camera;
   const drawing = usePathDrawing(camera, drawAnchor);
   const { dragIntent, strokeStarted } = drawing;
-  const handleTap = usePlayerSelection(snapshot, camera);
+  const handleTap = usePlayerSelection(snapshot, camera, selectionEnabled);
 
   const pan = usePanGesture({
     onBegin: (event) => {

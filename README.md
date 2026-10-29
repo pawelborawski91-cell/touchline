@@ -5,15 +5,21 @@ Both sides plan at the same time, then the plans play out in continuous simulati
 105 × 68 m pitch. The match engine is plain TypeScript and does not depend on the mobile UI.
 Rendering uses React Native Skia.
 
-**Status: Sprint 1, the pitch renderer.** The app opens a landscape match view: a 105 × 68 m Skia
-pitch with both 4-3-3 line-ups (NORTH CITY vs SOUTH UNITED) and the ball, under a touch camera.
-There is no simulation or gameplay yet; score and clock are static placeholders.
+**Status: Sprint 3, movement physics and execution.** The app opens a landscape match view: a
+105 × 68 m Skia pitch with both 4-3-3 line-ups (NORTH CITY vs SOUTH UNITED) under a touch camera.
+You plan movement for any player, then execute the turn and watch the players run their paths with
+acceleration, turning, braking and momentum. There is no ball play, opponent AI or networking yet.
 
-Camera gestures on the match view:
+On the match view:
 
-- **Drag** with one finger to pan (with momentum).
-- **Pinch** to zoom about your fingers; move them while pinching to pan as well.
-- **Double-tap** to zoom in on that spot; double-tap again to return to the full pitch.
+- **Drag** with one finger to pan (with momentum); **pinch** to zoom; **double-tap** to zoom in on
+  a spot or return to the full pitch.
+- **Tap** a player to select them, then **drag from the player** to draw a path. Adjust the draft
+  with Undo / Clear / Cancel, set its pace with **Pace** (walk, jog, run, sprint; default run), and
+  **Confirm** to queue it. A queued command can be edited or cancelled.
+- **START EXECUTION** commits the plan and simulates one 5 s turn (100 fixed 20 Hz ticks, rendered
+  at display rate with interpolation). Runs that do not finish pause and continue next turn.
+- **NEXT TURN** returns to planning. **DBG** (top right) toggles a simulation debug overlay.
 
 - [Game design](docs/GDD.md)
 - [Architecture & package boundaries](docs/ARCHITECTURE.md)
