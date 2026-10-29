@@ -30,7 +30,8 @@ function describeStatus(
 ) {
   if (mode === 'drawing_path') return { label: 'DRAWING', tone: colors.path };
   if (mode === 'previewing_path') {
-    const label = editing ? 'EDITING' : command ? 'REPLACING' : 'DRAFT';
+    const replacing = command !== undefined && command.status !== 'completed';
+    const label = editing ? 'EDITING' : replacing ? 'REPLACING' : 'DRAFT';
     return { label, tone: colors.path };
   }
   if (command) {

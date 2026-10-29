@@ -77,8 +77,18 @@ export function MatchScreen() {
   const { gesture, livePoints } = usePlanningGestures(snapshot, camera, drawAnchor, isPlanning);
 
   const selectedCommand = selectedPlayer ? getMovementCommand(book, selectedPlayer.id) : undefined;
-  const selectedProgress = selectedCommand
-    ? (view.pathStates[selectedCommand.id]?.progress ?? null)
+  const displayedCommand =
+    selectedCommand ??
+    (selectedPlayer
+      ? book.commands.find(
+          (command) =>
+            command.playerId === selectedPlayer.id &&
+            command.status === 'completed' &&
+            command.endedTurn === view.turn - 1,
+        )
+      : undefined);
+  const selectedProgress = displayedCommand
+    ? (view.pathStates[displayedCommand.id]?.progress ?? null)
     : null;
   const movementMode = planning.activeCommandPreview?.movementMode ?? DEFAULT_MOVEMENT_MODE;
 
@@ -194,7 +204,7 @@ export function MatchScreen() {
               <PlayerInfoPanel
                 snapshot={snapshot}
                 player={selectedPlayer}
-                command={selectedCommand}
+                command={displayedCommand}
                 progress={selectedProgress}
                 mode={planning.planningMode}
                 editing={planning.editingCommandId !== null}
