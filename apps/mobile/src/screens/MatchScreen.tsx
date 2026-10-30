@@ -9,23 +9,44 @@ import {
   type PlanningMode,
 } from '@touchline/planning';
 import type { EngineView, MatchEngine } from '@touchline/match-engine';
-import { MatchView, useCameraController, type WorldLayerContext } from '@touchline/renderer';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import {
+  BallDebugLayer,
+  MatchView,
+  screenToWorld,
+  useCameraController,
+  type WorldLayerContext,
+} from '@touchline/renderer';
+import {
+  ballFrameOffset,
+  FIELD_LENGTH,
+  FIELD_WIDTH,
+  KICK_TYPES,
+  type KickType,
+} from '@touchline/shared';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useShallow } from 'zustand/react/shallow';
 
 import { DebugOverlay } from '../components/DebugOverlay';
 import { ExecutionBar } from '../components/ExecutionBar';
+import { KICK_LABELS, KickControls, type KickControlActions } from '../components/KickControls';
 import { MatchInfoBar } from '../components/MatchInfoBar';
-import { PlanningControls, type PlanningControlActions } from '../components/PlanningControls';
+import {
+  ControlButton,
+  PlanningControls,
+  type PlanningControlActions,
+} from '../components/PlanningControls';
 import { PlanningLayer } from '../components/PlanningLayer';
 import { PlayerInfoPanel } from '../components/PlayerInfoPanel';
-import { useMatchEngine, useTurnSnapshot } from '../hooks/useMatchEngine';
+import { useBallTrajectory, useMatchEngine, useTurnSnapshot } from '../hooks/useMatchEngine';
 import { usePlanningGestures } from '../hooks/usePlanningGestures';
+import type { TapInterceptor } from '../hooks/usePlayerSelection';
 import { usePlanningStore } from '../stores/planningStore';
 import { colors } from '../theme/colors';
 
 const BOTTOM_STRIP_HEIGHT = 44;
+/** A dropped ball is kept this far inside the lines, m. */
+const DROP_BALL_INSET = 1;
 
 const PHASE_LABELS: Record<EngineView['phase'], string> = {
   planning: 'PLANNING',
@@ -44,7 +65,11 @@ export function MatchScreen() {
   const { snapshot, commands: book } = view;
   const isPlanning = view.phase === 'planning';
   const [debugVisible, setDebugVisible] = useState(false);
+  const [vizVisible, setVizVisible] = useState(false);
   const [engineNotice, setEngineNotice] = useState<string | null>(null);
+  /** Kick type being aimed for the selected player (the next pitch tap sets the target). */
+  const [kickAim, setKickAim] = useState<KickType | null>(null);
+  const aimTap = useRef<TapInterceptor | null>(null);
 
   const planning = usePlanningStore(
     useShallow((state) => ({
@@ -63,6 +88,10 @@ export function MatchScreen() {
     setEngineNotice(null);
   }, [planning.planningMode, planning.selectedPlayerId, view.phase]);
 
+  useEffect(() => {
+    setKickAim(null);
+  }, [planning.selectedPlayerId, view.phase]);
+
   // Selection survives execution so the ring and the readouts keep following the player.
   const selectedPlayer = useMemo(
     () => snapshot.players.find((player) => player.id === planning.selectedPlayerId) ?? null,
@@ -74,7 +103,14 @@ export function MatchScreen() {
   );
   const drawAnchor =
     isPlanning && canStartDrawing(planning) && selectedPlayer ? selectedPlayer.position : null;
-  const { gesture, livePoints } = usePlanningGestures(snapshot, camera, drawAnchor, isPlanning);
+  const { gesture, livePoints } = usePlanningGestures(
+    snapshot,
+    camera,
+    drawAnchor,
+    isPlanning,
+    aimTap,
+  );
+  const trajectory = useBallTrajectory(engine, view, vizVisible);
 
   const selectedCommand = selectedPlayer ? getMovementCommand(book, selectedPlayer.id) : undefined;
   const displayedCommand =
@@ -102,6 +138,44 @@ export function MatchScreen() {
       return false;
     }
   }, []);
+
+  useEffect(() => {
+    const playerId = planning.selectedPlayerId;
+    aimTap.current =
+      kickAim && playerId && isPlanning
+        ? (x, y) => {
+            const target = screenToWorld({ x, y }, camera.transform.value);
+            attempt(() => engine.planKick({ playerId, type: kickAim, target }));
+            setKickAim(null);
+            return true;
+          }
+        : null;
+  }, [attempt, camera.transform, engine, isPlanning, kickAim, planning.selectedPlayerId]);
+
+  const hasKick = selectedPlayer ? Boolean(view.plannedKicks[selectedPlayer.id]) : false;
+  const kickActions = useMemo<KickControlActions>(
+    () => ({
+      startAim: () => {
+        const current = selectedPlayer ? view.plannedKicks[selectedPlayer.id] : undefined;
+        setKickAim(current?.type ?? 'pass');
+      },
+      cycleType: () =>
+        setKickAim(
+          (type) => KICK_TYPES[(KICK_TYPES.indexOf(type ?? 'pass') + 1) % KICK_TYPES.length]!,
+        ),
+      cancelAim: () => setKickAim(null),
+      cancelKick: () => {
+        if (selectedPlayer) attempt(() => engine.cancelKick(selectedPlayer.id));
+      },
+    }),
+    [attempt, engine, selectedPlayer, view.plannedKicks],
+  );
+  const dropBall = useCallback(() => {
+    const { x, y } = engine.getBall().position;
+    const clamp = (value: number, max: number) =>
+      Math.min(Math.max(value, DROP_BALL_INSET), max - DROP_BALL_INSET);
+    attempt(() => engine.placeBall({ x: clamp(x, FIELD_LENGTH), y: clamp(y, FIELD_WIDTH) }));
+  }, [attempt, engine]);
 
   const actions = useMemo<PlanningControlActions>(
     () => ({
@@ -156,6 +230,8 @@ export function MatchScreen() {
         frame={playerFrame}
         frameIndexOf={frameIndexOf}
         debugVisible={debugVisible}
+        plannedKicks={view.plannedKicks}
+        players={snapshot.players}
       />
     ),
     [
@@ -168,13 +244,46 @@ export function MatchScreen() {
       planning.editingCommandId,
       playerFrame,
       selectedPlayer,
+      snapshot.players,
+      view.plannedKicks,
     ],
+  );
+
+  const ballConfig = engine.config.ball;
+  const contactRadii = useMemo(
+    () => ({
+      reach: ballConfig.controlReach,
+      body: ballConfig.playerBodyRadius + ballConfig.radius,
+    }),
+    [ballConfig],
+  );
+  const playerCount = snapshot.players.length;
+  const renderOverlay = useCallback(
+    (context: WorldLayerContext) =>
+      vizVisible ? (
+        <BallDebugLayer
+          frame={playerFrame}
+          frameOffset={ballFrameOffset(playerCount)}
+          playerCount={playerCount}
+          inverseScale={context.inverseScale}
+          ballRadius={ballConfig.radius}
+          trajectory={trajectory}
+          contact={contactRadii}
+        />
+      ) : null,
+    [ballConfig.radius, contactRadii, playerCount, playerFrame, trajectory, vizVisible],
   );
 
   const hint =
     engineNotice ??
     planning.notice ??
-    hintFor(planning.planningMode, selectedCommand?.status ?? null);
+    (kickAim
+      ? `Tap the pitch to aim the ${KICK_LABELS[kickAim].toLowerCase()}`
+      : view.ball.isOutOfPlay
+        ? 'Ball out of play — drop it to restart'
+        : hintFor(planning.planningMode, selectedCommand?.status ?? null));
+  const showKickControls =
+    selectedPlayer !== null && (kickAim !== null || planning.planningMode === 'player_selected');
 
   return (
     <View style={styles.container}>
@@ -183,6 +292,8 @@ export function MatchScreen() {
         view={view}
         debugVisible={debugVisible}
         onToggleDebug={() => setDebugVisible((visible) => !visible)}
+        vizVisible={vizVisible}
+        onToggleViz={() => setVizVisible((visible) => !visible)}
       />
       <View style={styles.pitch}>
         <MatchView
@@ -190,6 +301,7 @@ export function MatchScreen() {
           camera={camera}
           gesture={gesture}
           renderUnderlay={renderUnderlay}
+          renderOverlay={renderOverlay}
           playerFrame={playerFrame}
           style={styles.pitchView}
         />
@@ -218,15 +330,23 @@ export function MatchScreen() {
             >
               {hint}
             </Text>
-            <PlanningControls
-              mode={planning.planningMode}
-              hasCommand={Boolean(selectedCommand)}
-              canEdit={selectedCommand?.status === 'queued'}
-              canConfirm={canConfirmDraft(planning)}
-              canUndo={planning.currentDraftPath.length > 2}
-              movementMode={movementMode}
-              actions={actions}
-            />
+            {view.ball.isOutOfPlay && !kickAim && (
+              <ControlButton label="Drop ball" onPress={dropBall} tone="primary" />
+            )}
+            {showKickControls && (
+              <KickControls aiming={kickAim} hasKick={hasKick} actions={kickActions} />
+            )}
+            {!kickAim && (
+              <PlanningControls
+                mode={planning.planningMode}
+                hasCommand={Boolean(selectedCommand)}
+                canEdit={selectedCommand?.status === 'queued'}
+                canConfirm={canConfirmDraft(planning)}
+                canUndo={planning.currentDraftPath.length > 2}
+                movementMode={movementMode}
+                actions={actions}
+              />
+            )}
           </>
         ) : (
           <ExecutionBar engine={engine} view={view} debug={debugVisible} />
@@ -254,11 +374,15 @@ function LiveInfoBar({
   view,
   debugVisible,
   onToggleDebug,
+  vizVisible,
+  onToggleViz,
 }: {
   engine: MatchEngine;
   view: EngineView;
   debugVisible: boolean;
   onToggleDebug: () => void;
+  vizVisible: boolean;
+  onToggleViz: () => void;
 }) {
   const turn = useTurnSnapshot(engine);
   const counts = countCommandsByStatus(view.commands);
@@ -293,6 +417,15 @@ function LiveInfoBar({
             style={[styles.debugToggle, debugVisible && styles.debugToggleOn]}
           >
             <Text style={[styles.debugLabel, debugVisible && styles.debugLabelOn]}>DBG</Text>
+          </Pressable>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Toggle ball visualisation"
+            onPress={onToggleViz}
+            hitSlop={8}
+            style={[styles.debugToggle, vizVisible && styles.debugToggleOn]}
+          >
+            <Text style={[styles.debugLabel, vizVisible && styles.debugLabelOn]}>VIZ</Text>
           </Pressable>
         </View>
       }

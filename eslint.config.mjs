@@ -180,6 +180,7 @@ export default defineConfig(
   {
     files: [
       'packages/renderer/src/core.ts',
+      'packages/renderer/src/ball/**/*.ts',
       'packages/renderer/src/camera/cameraTransforms.ts',
       'packages/renderer/src/coordinates/**/*.ts',
       'packages/renderer/src/interaction/**/*.ts',

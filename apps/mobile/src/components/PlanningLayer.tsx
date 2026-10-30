@@ -1,7 +1,9 @@
+import type { PlannedKick } from '@touchline/match-engine';
 import type { PlayerCommand } from '@touchline/planning';
 import {
   LiveMovementPath,
   MovementPath,
+  PlannedKickLine,
   PlayerSelectionRing,
   RemainingMovementPath,
   type MovementPathVariant,
@@ -23,6 +25,8 @@ interface PlanningLayerProps {
   frameIndexOf: ReadonlyMap<string, number>;
   /** Also draws cancelled and interrupted commands. */
   debugVisible: boolean;
+  plannedKicks: Readonly<Record<string, PlannedKick>>;
+  players: readonly MatchPlayer[];
 }
 
 function variantFor(
@@ -51,7 +55,7 @@ function variantFor(
  * World-space command visuals drawn under the markers. Running and paused commands show only
  * the route still ahead of the player (following the live frame) with the current waypoint;
  * queued commands show their whole path; completed ones a faint trace. Cancelled and
- * interrupted commands appear only in debug mode.
+ * interrupted commands appear only in debug mode. Kick orders are dashed lines to their targets.
  */
 export function PlanningLayer({
   context,
@@ -63,6 +67,8 @@ export function PlanningLayer({
   frame,
   frameIndexOf,
   debugVisible,
+  plannedKicks,
+  players,
 }: PlanningLayerProps) {
   const { inverseScale } = context;
   const ordered = [...commands].sort((a, b) => drawOrder(a) - drawOrder(b));
@@ -97,6 +103,22 @@ export function PlanningLayer({
         <MovementPath points={preview.path} variant="draft" inverseScale={inverseScale} />
       )}
       <LiveMovementPath points={livePoints} inverseScale={inverseScale} />
+      {Object.values(plannedKicks).map((kick) => {
+        const kicker = players.find((p) => p.id === kick.playerId);
+        if (!kicker) return null;
+        return (
+          <PlannedKickLine
+            key={kick.playerId}
+            type={kick.type}
+            from={kicker.position}
+            target={kick.target}
+            inverseScale={inverseScale}
+            frame={frame}
+            frameIndex={frameIndexOf.get(kick.playerId) ?? -1}
+            emphasized={kick.playerId === selectedPlayer?.id}
+          />
+        );
+      })}
       {selectedPlayer && (
         <PlayerSelectionRing
           position={selectedPlayer.position}

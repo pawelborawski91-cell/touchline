@@ -23,7 +23,11 @@ export function ExecutionBar({ engine, view, debug }: ExecutionBarProps) {
     return (
       <View style={styles.row}>
         <Text style={[styles.title, styles.amber]}>STOPPAGE</Text>
-        <Text style={styles.summary}>Play stopped; running commands are paused.</Text>
+        <Text style={styles.summary}>
+          {view.ball.isOutOfPlay
+            ? 'Ball out of play. Running commands are paused; drop the ball in planning.'
+            : 'Play stopped; running commands are paused.'}
+        </Text>
         <View style={styles.spacer} />
         <ControlButton label="RETURN TO PLANNING" onPress={() => engine.endStoppage()} />
       </View>

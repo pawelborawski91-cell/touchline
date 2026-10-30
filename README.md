@@ -5,11 +5,13 @@ Both sides plan at the same time, then the plans play out in continuous simulati
 105 × 68 m pitch. The match engine is plain TypeScript and does not depend on the mobile UI.
 Rendering uses React Native Skia.
 
-**Status: Sprint 4, turn controller and persistent commands.** The app opens a landscape match
-view: a 105 × 68 m Skia pitch with both 4-3-3 line-ups (NORTH CITY vs SOUTH UNITED) under a touch
-camera. The match runs as a repeating cycle of planning, commit and 5 s of execution, with players
-moving under acceleration, turning, braking and momentum. Runs carry over between turns without
-being reset. There is no ball play, opponent AI or networking yet.
+**Status: Sprint 5, ball physics and possession.** The app opens a landscape match view: a
+105 × 68 m Skia pitch with both 4-3-3 line-ups (NORTH CITY vs SOUTH UNITED) under a touch camera.
+The match runs as a repeating cycle of planning, commit and 5 s of execution, with players moving
+under acceleration, turning, braking and momentum, and runs carrying over between turns. The ball
+is an independent 3D body: it rolls, flies, bounces and settles; players control it on contact,
+dribble it with repeated touches, challenge for it and kick it (pass, shot, clearance, lob). There
+is no goal detection, restart, opponent AI or networking yet.
 
 On the match view:
 
@@ -24,9 +26,18 @@ On the match view:
   that have not finished stay **active** and are drawn from the player onwards only. Drawing a
   new route for such a player replaces the run from where they are now, keeping their momentum.
   **Cancel cmd** stops it.
+- **Kick** (with a player selected) orders a kick: cycle the type with **Kick: PASS / SHOT / CLEAR
+  / LOB**, then tap the pitch to set the target. The order is drawn as a dashed line and fires
+  during execution as soon as the player can strike the ball (in reach, low enough, not held by
+  an opponent); power comes from the distance to the target. **Re-aim** or **Cancel kick** change
+  it. Run a player through the ball to win it; a player in control dribbles it with touches.
+- When the ball crosses a line the game stops (**STOPPAGE**, "Ball out of play"). Return to
+  planning and tap **Drop ball** to put it back just inside the line (restarts come later).
 - Leaving the app mid-turn pauses execution; **RESUME** continues from the same tick.
 - **DBG** (top right) toggles a debug overlay (turn, phase, tick, command counts, the selected
-  player's waypoint and progress) and shows cancelled routes.
+  player's waypoint and progress, ball position, velocity, height, possession, last touch and
+  recent ball events) and shows cancelled routes. **VIZ** draws the ball's velocity vector, its
+  predicted free-flight trajectory and the players' reach and body circles.
 
 - [Game design](docs/GDD.md)
 - [Architecture & package boundaries](docs/ARCHITECTURE.md)
@@ -37,7 +48,8 @@ On the match view:
 ```
 apps/mobile            Expo app (@touchline/mobile)
 packages/shared        Domain types and utilities (@touchline/shared)
-packages/physics       Physics, rendering-independent (@touchline/physics)
+packages/physics       Player movement physics, rendering-independent (@touchline/physics)
+packages/ball-engine   Ball physics, contact and possession (@touchline/ball-engine)
 packages/match-engine  Authoritative simulation, no UI deps (@touchline/match-engine)
 packages/planning      Commands and trajectories (@touchline/planning)
 packages/renderer      Skia rendering of snapshots (@touchline/renderer)

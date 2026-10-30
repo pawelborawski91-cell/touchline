@@ -34,3 +34,14 @@ export {
 } from './interaction/hitTest';
 export type { PathHeading } from './path/pathGeometry';
 export { getPathEnd, pointsAlongPath, remainingRoute } from './path/pathGeometry';
+export type { BallFrameValues, BallProjection, BallTrailPoint } from './ball/ballProjection';
+export {
+  BALL_LIFT_KNEE,
+  BALL_LIFT_PX,
+  BALL_STALK_MIN_HEIGHT,
+  BALL_TRAIL_MIN_SPEED,
+  ballLiftPx,
+  ballTrail,
+  projectBall,
+  readBallFrame,
+} from './ball/ballProjection';
