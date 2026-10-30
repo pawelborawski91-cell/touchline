@@ -1,11 +1,21 @@
 /**
  * @touchline/match-engine — authoritative, deterministic match simulation.
  *
- * May depend only on @touchline/shared and @touchline/physics. Must not import React, React
+ * May depend only on @touchline/shared, @touchline/physics and @touchline/ball-engine. Must not import React, React
  * Native, Expo, Skia, Zustand, or any rendering/UI package.
  */
 export {
+  advanceBall,
+  cancelPlannedKick,
+  firePlannedKicks,
+  kickBall,
+  placeBall,
+  planKick,
+  type PlanKickInput,
+} from './BallCoordinator';
+export {
   MatchEngine,
+  type BallDebugInfo,
   type EngineDebugInfo,
   type EngineView,
   type MatchEngineOptions,
@@ -24,13 +34,20 @@ export {
   SimulationClock,
   type SimulationClockConfig,
 } from './SimulationClock';
-export { interpolateSnapshot, toMatchSnapshot, writeInterpolatedFrame } from './SimulationSnapshot';
+export {
+  interpolateBall,
+  interpolateSnapshot,
+  toMatchSnapshot,
+  writeInterpolatedFrame,
+} from './SimulationSnapshot';
 export {
   createSimulationState,
   DEFAULT_SIMULATION_CONFIG,
   DEFAULT_TURN_CONFIG,
+  RECENT_EVENT_LIMIT,
   ticksPerTurn,
   type PathExecutionState,
+  type PlannedKick,
   type SimulationConfig,
   type SimulationState,
   type TeamCommitState,

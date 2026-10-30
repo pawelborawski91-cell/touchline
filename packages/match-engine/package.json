@@ -13,6 +13,7 @@
     "typecheck": "tsc --noEmit -p ."
   },
   "dependencies": {
+    "@touchline/ball-engine": "workspace:*",
     "@touchline/physics": "workspace:*",
     "@touchline/shared": "workspace:*"
   },

@@ -2,7 +2,7 @@
   "name": "touchline",
   "version": "0.0.0",
   "private": true,
-  "description": "TOUCHLINE — mobile-first 11v11 tactical football simulation for iOS and Android.",
+  "description": "TOUCHLINE \u2014 mobile-first 11v11 tactical football simulation for iOS and Android.",
   "type": "module",
   "packageManager": "pnpm@10.33.4",
   "engines": {
@@ -22,6 +22,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
+    "@touchline/ball-engine": "workspace:*",
     "@touchline/match-engine": "workspace:*",
     "@touchline/physics": "workspace:*",
     "@touchline/planning": "workspace:*",

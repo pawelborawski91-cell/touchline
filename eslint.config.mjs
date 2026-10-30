@@ -27,7 +27,13 @@ const workspaceImports = (packages, message) =>
   packages.map((name) => ({ group: [name, `${name}/*`], message }));
 
 const RENDERER_WORKSPACE_IMPORTS = workspaceImports(
-  ['@touchline/match-engine', '@touchline/physics', '@touchline/planning', '@touchline/mobile'],
+  [
+    '@touchline/match-engine',
+    '@touchline/physics',
+    '@touchline/ball-engine',
+    '@touchline/planning',
+    '@touchline/mobile',
+  ],
   '@touchline/renderer consumes snapshots typed in @touchline/shared and may only depend on it.',
 );
 
@@ -78,11 +84,35 @@ export default defineConfig(
             ...workspaceImports(
               [
                 '@touchline/match-engine',
+                '@touchline/ball-engine',
                 '@touchline/planning',
                 '@touchline/renderer',
                 '@touchline/mobile',
               ],
               '@touchline/physics may only depend on @touchline/shared.',
+            ),
+          ],
+        },
+      ],
+    },
+  },
+  {
+    files: ['packages/ball-engine/**/*.ts'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            ...UI_AND_PLATFORM_IMPORTS,
+            ...workspaceImports(
+              [
+                '@touchline/physics',
+                '@touchline/match-engine',
+                '@touchline/planning',
+                '@touchline/renderer',
+                '@touchline/mobile',
+              ],
+              '@touchline/ball-engine may only depend on @touchline/shared.',
             ),
           ],
         },
@@ -99,7 +129,7 @@ export default defineConfig(
             ...UI_AND_PLATFORM_IMPORTS,
             ...workspaceImports(
               ['@touchline/planning', '@touchline/renderer', '@touchline/mobile'],
-              '@touchline/match-engine may only depend on @touchline/shared and @touchline/physics.',
+              '@touchline/match-engine may only depend on @touchline/shared, @touchline/physics and @touchline/ball-engine.',
             ),
           ],
         },
@@ -117,6 +147,7 @@ export default defineConfig(
             ...workspaceImports(
               [
                 '@touchline/physics',
+                '@touchline/ball-engine',
                 '@touchline/match-engine',
                 '@touchline/renderer',
                 '@touchline/mobile',

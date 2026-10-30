@@ -7,7 +7,16 @@ import {
   type MatchPhase,
   type MatchPlayer,
   type MatchSnapshot,
+  type KickType,
+  type Vector2,
 } from '@touchline/shared';
+import {
+  createBallSimulationState,
+  DEFAULT_BALL_CONFIG,
+  type BallConfig,
+  type BallEvent,
+  type BallSimulationState,
+} from '@touchline/ball-engine';
 import {
   DEFAULT_PATH_FOLLOWER_CONFIG,
   DEFAULT_STAMINA_CONFIG,
@@ -40,6 +49,25 @@ export interface TeamCommitState {
   committed: boolean;
 }
 
+/**
+ * A kick ordered during planning. It fires during execution on the first tick the player can
+ * legally strike the ball (in reach, low enough, not under another player's control), aimed from
+ * the ball at `target`. It persists across turns until it fires or is cancelled.
+ */
+export interface PlannedKick {
+  playerId: string;
+  type: KickType;
+  /** World point the kick is aimed at. */
+  target: Vector2;
+  /** 0–1 launch-angle choice within the kick type's range. */
+  lift: number;
+  /** 0–1 power, or null to derive it from the distance to `target` when the kick fires. */
+  power: number | null;
+}
+
+/** Ball events kept in the state for the UI (most recent last). */
+export const RECENT_EVENT_LIMIT = 24;
+
 /** Complete, immutable simulation state. Every step produces a new object. */
 export interface SimulationState {
   /** Fixed steps simulated since kickoff (authoritative match time). */
@@ -54,8 +82,13 @@ export interface SimulationState {
   /** Path progress per command id. */
   readonly pathStates: Readonly<Record<string, PathExecutionState>>;
   readonly teamCommits: readonly TeamCommitState[];
-  /** Static match context carried through unchanged (teams, score, ball). */
-  readonly context: Pick<MatchSnapshot, 'home' | 'away' | 'score' | 'ball'>;
+  /** The ball, simulated independently of the players. */
+  readonly ball: BallSimulationState;
+  /** Kick orders per player id. */
+  readonly plannedKicks: Readonly<Record<string, PlannedKick>>;
+  readonly recentEvents: readonly BallEvent[];
+  /** Static match context carried through unchanged (teams, score). */
+  readonly context: Pick<MatchSnapshot, 'home' | 'away' | 'score'>;
 }
 
 /** Turn timing. Ticks are authoritative; seconds are derived from them. */
@@ -70,12 +103,14 @@ export interface SimulationConfig {
   match: MatchConfig;
   follower: PathFollowerConfig;
   stamina: StaminaConfig;
+  ball: BallConfig;
 }
 
 export const DEFAULT_SIMULATION_CONFIG: Readonly<SimulationConfig> = Object.freeze({
   match: DEFAULT_MATCH_CONFIG,
   follower: DEFAULT_PATH_FOLLOWER_CONFIG,
   stamina: DEFAULT_STAMINA_CONFIG,
+  ball: DEFAULT_BALL_CONFIG,
 });
 
 /**
@@ -112,6 +147,7 @@ export function createSimulationState(
       position: { ...player.position },
       velocity: { ...player.velocity },
       movement: { ...player.movement },
+      technical: { ...player.technical },
     })),
     commands,
     pathStates: {},
@@ -119,11 +155,13 @@ export function createSimulationState(
       teamId,
       committed: false,
     })),
+    ball: createBallSimulationState(snapshot.ball),
+    plannedKicks: {},
+    recentEvents: [],
     context: {
       home: snapshot.home,
       away: snapshot.away,
       score: snapshot.score,
-      ball: snapshot.ball,
     },
   };
 }

@@ -1,7 +1,8 @@
 import { FIELD_LENGTH, FIELD_WIDTH } from '../field';
 import type { Vector2 } from '../math';
+import { createBallState } from '../ball';
 import type { MatchPlayer, MatchSnapshot, TeamInfo, TeamSide } from '../match';
-import type { PlayerMovementAttributes } from '../player';
+import type { PlayerMovementAttributes, PlayerTechnicalAttributes } from '../player';
 
 export type FormationRole =
   'GK' | 'RB' | 'RCB' | 'LCB' | 'LB' | 'RCM' | 'CM' | 'LCM' | 'RW' | 'ST' | 'LW';
@@ -132,6 +133,21 @@ const ROLE_MOVEMENT: Readonly<Record<FormationRole, PlayerMovementAttributes>> =
   },
 };
 
+/** Role baselines for ball-handling attributes (prototype tuning values). */
+const ROLE_TECHNICAL: Readonly<Record<FormationRole, PlayerTechnicalAttributes>> = {
+  GK: { technique: 0.45, ballControl: 0.55 },
+  RB: { technique: 0.6, ballControl: 0.62 },
+  RCB: { technique: 0.5, ballControl: 0.58 },
+  LCB: { technique: 0.5, ballControl: 0.58 },
+  LB: { technique: 0.6, ballControl: 0.62 },
+  RCM: { technique: 0.75, ballControl: 0.76 },
+  CM: { technique: 0.78, ballControl: 0.8 },
+  LCM: { technique: 0.75, ballControl: 0.76 },
+  RW: { technique: 0.8, ballControl: 0.74 },
+  ST: { technique: 0.74, ballControl: 0.78 },
+  LW: { technique: 0.8, ballControl: 0.74 },
+};
+
 /** Deterministic value in [-1, 1] derived from a string (FNV-1a). */
 function hashUnit(key: string): number {
   let hash = 0x811c9dc5;
@@ -161,6 +177,19 @@ export function createMovementAttributes(
   };
 }
 
+/** Role baseline with a small, deterministic per-player variation, clamped to 0–1. */
+export function createTechnicalAttributes(
+  role: FormationRole,
+  playerId: string,
+): PlayerTechnicalAttributes {
+  const base = ROLE_TECHNICAL[role];
+  const vary = (field: string) => 1 + hashUnit(`${playerId}:${field}`) * 0.05;
+  return {
+    technique: clampTo(base.technique * vary('technique'), 0, 1),
+    ballControl: clampTo(base.ballControl * vary('ballControl'), 0, 1),
+  };
+}
+
 function createLineup(team: TeamInfo, formation: readonly FormationSlot[]): MatchPlayer[] {
   const isHome = team.side === 'home';
   return formation.map((slot) => {
@@ -174,6 +203,7 @@ function createLineup(team: TeamInfo, formation: readonly FormationSlot[]): Matc
       velocity: { x: 0, y: 0 },
       facing: isHome ? 0 : Math.PI,
       movement: createMovementAttributes(slot.role, id),
+      technical: createTechnicalAttributes(slot.role, id),
       staminaCurrent: 1,
       activeCommandId: null,
     };
@@ -192,10 +222,7 @@ export function createInitialMatch(): MatchSnapshot {
       ...createLineup(HOME_TEAM, FORMATION_4_3_3),
       ...createLineup(AWAY_TEAM, FORMATION_4_3_3),
     ],
-    ball: {
-      position: { x: FIELD_LENGTH / 2, y: FIELD_WIDTH / 2, z: 0 },
-      velocity: { x: 0, y: 0, z: 0 },
-    },
+    ball: createBallState(),
   };
 }
 
