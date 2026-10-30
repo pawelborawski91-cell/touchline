@@ -1,5 +1,6 @@
 import {
   AWAY_TEAM,
+  BALL_RADIUS,
   CENTRE_CIRCLE_RADIUS,
   createInitialMatch,
   FIELD_LENGTH,
@@ -85,7 +86,11 @@ describe('initial match fixture', () => {
   });
 
   it('starts with the ball on the centre spot, 0–0 at 00:00', () => {
-    expect(match.ball.position).toEqual({ x: FIELD_LENGTH / 2, y: FIELD_WIDTH / 2, z: 0 });
+    expect(match.ball.position).toEqual({
+      x: FIELD_LENGTH / 2,
+      y: FIELD_WIDTH / 2,
+      z: BALL_RADIUS,
+    });
     expect(match.score).toEqual({ home: 0, away: 0 });
     expect(match.clockSeconds).toBe(0);
     expect(match.home.name).toBe('NORTH CITY');

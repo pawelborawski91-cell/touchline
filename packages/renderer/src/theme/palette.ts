@@ -19,6 +19,7 @@ export const palette = {
   shadow: 'rgba(0, 0, 0, 0.45)',
   ball: '#F7F7F2',
   ballOutline: 'rgba(10, 14, 18, 0.75)',
+  ballTrail: 'rgba(247, 247, 242, 0.35)',
 } as const;
 
 export const TEAM_KITS: Readonly<Record<TeamSide, MarkerKit>> = {

@@ -11,6 +11,7 @@ export {
   type CameraController,
   type CameraGestureHandlers,
 } from './camera/CameraController';
+export { BallDebugLayer, type BallContactRadii } from './components/BallDebugLayer';
 export { BallMarker, BALL_MARKER_RADIUS } from './components/BallMarker';
 export { Goal, type GoalEnd } from './components/Goal';
 export { MatchView, type WorldLayerContext } from './components/MatchView';
@@ -25,6 +26,7 @@ export {
   type MovementPathStyle,
   type MovementPathVariant,
 } from './components/planning/pathStyles';
+export { KICK_COLORS, PlannedKickLine } from './components/planning/PlannedKickLine';
 export { PlayerSelectionRing } from './components/planning/PlayerSelectionRing';
 export { Pitch } from './components/Pitch';
 export { PlayerMarker } from './components/PlayerMarker';

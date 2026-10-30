@@ -1,6 +1,13 @@
 export type { Vector2, Vector3 } from './math';
-export type { MovementMode, PlayerMovementAttributes, PlayerState } from './player';
-export { DEFAULT_MOVEMENT_MODE, MOVEMENT_MODES } from './player';
+export type {
+  MovementMode,
+  PlayerMovementAttributes,
+  PlayerState,
+  PlayerTechnicalAttributes,
+} from './player';
+export { DEFAULT_MOVEMENT_MODE, DEFAULT_TECHNICAL_ATTRIBUTES, MOVEMENT_MODES } from './player';
+export type { BallState, KickRequest, KickType, PossessionState } from './ball';
+export { BALL_RADIUS, createBallState, KICK_TYPES } from './ball';
 export type { CommandStatus, CommandType, PlayerCommand } from './commands/PlayerCommand';
 export {
   DEFAULT_COMMAND_PRIORITY,
@@ -50,7 +57,6 @@ export {
   tryTransitionCommand,
 } from './commands/CommandManager';
 export type {
-  BallState,
   MatchConfig,
   MatchPhase,
   MatchPlayer,
@@ -60,7 +66,7 @@ export type {
   TeamSide,
 } from './match';
 export { DEFAULT_MATCH_CONFIG, getTicksPerTurn } from './match';
-export { PLAYER_FRAME_STRIDE } from './frame';
+export { BALL_FRAME_SIZE, ballFrameOffset, PLAYER_FRAME_STRIDE } from './frame';
 export {
   CENTRE_CIRCLE_RADIUS,
   CORNER_ARC_RADIUS,
@@ -79,6 +85,7 @@ export {
   AWAY_TEAM,
   createInitialMatch,
   createMovementAttributes,
+  createTechnicalAttributes,
   FORMATION_4_3_3,
   getTeamSide,
   HOME_TEAM,

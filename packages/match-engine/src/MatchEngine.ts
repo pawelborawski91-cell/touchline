@@ -1,16 +1,37 @@
 import {
+  ballHeight,
+  getPossessionSnapshot,
+  horizontalSpeed,
+  isAirborne,
+  predictTrajectory,
+  type BallEvent,
+  type KickResult,
+  type PossessionSnapshot,
+} from '@touchline/ball-engine';
+import {
   countCommandsByStatus,
   getCommand,
   getMovementCommand,
   type CommandBook,
+  type BallState,
   type CommandStatus,
+  type KickRequest,
   type MatchPhase,
   type MatchSnapshot,
   type MovementMode,
   type PlayerCommand,
+  type PossessionState,
   type Vector2,
+  type Vector3,
 } from '@touchline/shared';
 
+import {
+  cancelPlannedKick,
+  kickBall,
+  placeBall,
+  planKick,
+  type PlanKickInput,
+} from './BallCoordinator';
 import {
   DEFAULT_CLOCK_CONFIG,
   SimulationClock,
@@ -22,6 +43,7 @@ import {
   DEFAULT_SIMULATION_CONFIG,
   ticksPerTurn,
   type PathExecutionState,
+  type PlannedKick,
   type SimulationConfig,
   type SimulationState,
   type TeamCommitState,
@@ -55,6 +77,23 @@ export interface PlayerDebugInfo {
   staminaCurrent: number;
 }
 
+export interface BallDebugInfo {
+  position: Vector3;
+  velocity: Vector3;
+  horizontalSpeed: number;
+  verticalSpeed: number;
+  /** Height of the ball's underside above the pitch. */
+  height: number;
+  airborne: boolean;
+  possession: PossessionState;
+  controllerPlayerId: string | null;
+  lastTouchPlayerId: string | null;
+  lastTouchTeamId: string | null;
+  contenderIds: readonly string[];
+  isOutOfPlay: boolean;
+  recentEvents: readonly BallEvent[];
+}
+
 export interface EngineDebugInfo {
   tick: number;
   turn: number;
@@ -68,6 +107,7 @@ export interface EngineDebugInfo {
   /** Players with a command or still moving. */
   players: PlayerDebugInfo[];
   selected: PlayerDebugInfo | null;
+  ball: BallDebugInfo;
 }
 
 /**
@@ -81,8 +121,23 @@ export interface EngineView {
   commands: CommandBook;
   pathStates: Readonly<Record<string, PathExecutionState>>;
   teamCommits: readonly TeamCommitState[];
+  plannedKicks: Readonly<Record<string, PlannedKick>>;
+  /**
+   * The ball as of the last view change. The view updates when possession, the controller or
+   * out-of-play changes, not on every tick; read the frame for the live position.
+   */
+  ball: BallState;
   /** Current (non-interpolated) snapshot; exact whenever the simulation is not executing. */
   snapshot: MatchSnapshot;
+}
+
+function ballViewChanged(before: BallState, after: BallState): boolean {
+  return (
+    before.possessionState !== after.possessionState ||
+    before.controllerPlayerId !== after.controllerPlayerId ||
+    before.lastTouchPlayerId !== after.lastTouchPlayerId ||
+    before.isOutOfPlay !== after.isOutOfPlay
+  );
 }
 
 export interface MatchEngineOptions {
@@ -180,6 +235,54 @@ export class MatchEngine {
     return this.current.pathStates[commandId];
   }
 
+  // ── Ball actions ──────────────────────────────────────────────────────────────────────────
+
+  /**
+   * Orders a kick for a player (planning only). It fires during execution as soon as the player
+   * can legally strike the ball, and persists across turns until it fires or is cancelled.
+   */
+  planKick(input: PlanKickInput): PlannedKick {
+    this.commit(planKick(this.current, input, this.config));
+    return this.current.plannedKicks[input.playerId]!;
+  }
+
+  cancelKick(playerId: string): void {
+    this.commit(cancelPlannedKick(this.current, playerId));
+  }
+
+  /** Kicks immediately (execution only). A rejected kick changes nothing. */
+  kick(request: KickRequest): KickResult {
+    const { state, result } = kickBall(this.current, request, this.config);
+    if (result.ok) {
+      this.commit(state);
+      this.notifyTicks();
+    }
+    return result;
+  }
+
+  /** Puts a still, free ball on the pitch (planning only; debug stand-in for restarts). */
+  placeBall(position: Vector2): void {
+    this.commit(placeBall(this.current, position, this.config));
+  }
+
+  getBall(): BallState {
+    return this.current.ball.ball;
+  }
+
+  getPossession(): PossessionSnapshot {
+    return getPossessionSnapshot(this.current.ball, this.current.players);
+  }
+
+  /** Free-flight prediction of the ball (ignores players), for debug drawing. */
+  predictBallTrajectory(seconds = 3): Vector3[] {
+    return predictTrajectory(
+      this.current.ball.ball,
+      this.config.ball,
+      this.config.match.fixedDeltaTime,
+      seconds,
+    );
+  }
+
   // ── Phase actions ─────────────────────────────────────────────────────────────────────────
 
   /** Validates and commits every team's plan and starts the execution window. */
@@ -244,7 +347,12 @@ export class MatchEngine {
       this.current = stepExecution(before, this.config);
       this.snapshot = null;
       steps += 1;
-      if (this.current.commands !== before.commands || this.current.phase !== before.phase) {
+      if (
+        this.current.commands !== before.commands ||
+        this.current.phase !== before.phase ||
+        this.current.plannedKicks !== before.plannedKicks ||
+        ballViewChanged(before.ball.ball, this.current.ball.ball)
+      ) {
         this.notify();
       }
     }
@@ -271,7 +379,10 @@ export class MatchEngine {
     return interpolateSnapshot(this.previous, this.current, this.alpha, this.config);
   }
 
-  /** Allocation-free interpolated player frame for the render loop (see `PLAYER_FRAME_STRIDE`). */
+  /**
+   * Allocation-free interpolated frame for the render loop: players (see `PLAYER_FRAME_STRIDE`)
+   * followed by the ball (see `ballFrameOffset`).
+   */
   writeFrame(out: number[]): number[] {
     return writeInterpolatedFrame(this.previous, this.current, this.alpha, out);
   }
@@ -314,6 +425,26 @@ export class MatchEngine {
       counts: countCommandsByStatus(state.commands),
       players,
       selected: selectedPlayerId ? describe(selectedPlayerId) : null,
+      ball: this.describeBall(),
+    };
+  }
+
+  private describeBall(): BallDebugInfo {
+    const { ball, contenderIds } = this.current.ball;
+    return {
+      position: ball.position,
+      velocity: ball.velocity,
+      horizontalSpeed: horizontalSpeed(ball),
+      verticalSpeed: ball.velocity.z,
+      height: ballHeight(ball),
+      airborne: isAirborne(ball),
+      possession: ball.possessionState,
+      controllerPlayerId: ball.controllerPlayerId,
+      lastTouchPlayerId: ball.lastTouchPlayerId,
+      lastTouchTeamId: ball.lastTouchTeamId,
+      contenderIds,
+      isOutOfPlay: ball.isOutOfPlay,
+      recentEvents: this.current.recentEvents,
     };
   }
 
@@ -341,6 +472,8 @@ export class MatchEngine {
       commands: this.current.commands,
       pathStates: this.current.pathStates,
       teamCommits: this.current.teamCommits,
+      plannedKicks: this.current.plannedKicks,
+      ball: this.current.ball.ball,
       snapshot: this.getSnapshot(),
     };
   }

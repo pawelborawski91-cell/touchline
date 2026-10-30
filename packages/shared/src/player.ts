@@ -16,6 +16,19 @@ export interface PlayerMovementAttributes {
   stamina: number;
 }
 
+/** Ball-handling capabilities, 0–1. Prototype tuning values. */
+export interface PlayerTechnicalAttributes {
+  /** Quality of touches: how hard a dribble touch can redirect the ball, kick cleanliness. */
+  technique: number;
+  /** First touch: how fast a ball can be brought under control and how softly it is cushioned. */
+  ballControl: number;
+}
+
+export const DEFAULT_TECHNICAL_ATTRIBUTES: Readonly<PlayerTechnicalAttributes> = Object.freeze({
+  technique: 0.6,
+  ballControl: 0.6,
+});
+
 /** Pace a movement command is executed at; caps the player's speed for that command. */
 export type MovementMode = 'walk' | 'jog' | 'run' | 'sprint';
 
@@ -33,6 +46,7 @@ export interface PlayerState {
   facing: number;
   role: string;
   movement: PlayerMovementAttributes;
+  technical: PlayerTechnicalAttributes;
   /** Remaining stamina, 0–1. */
   staminaCurrent: number;
   activeCommandId: string | null;

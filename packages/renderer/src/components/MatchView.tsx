@@ -1,5 +1,5 @@
 import { Canvas, Group, useFont } from '@shopify/react-native-skia';
-import { getTeamSide, type MatchSnapshot } from '@touchline/shared';
+import { ballFrameOffset, getTeamSide, type MatchSnapshot } from '@touchline/shared';
 import { useMemo, useState, type ReactNode } from 'react';
 import {
   StyleSheet,
@@ -44,10 +44,13 @@ interface MatchViewProps {
   /** World-space content drawn above the markers and ball. */
   renderOverlay?: (context: WorldLayerContext) => ReactNode;
   /**
-   * Optional live player frame (`PLAYER_FRAME_STRIDE` values per player, `snapshot.players`
-   * order), written by a simulation loop. Markers follow it on the UI thread without re-renders.
+   * Optional live frame written by a simulation loop: `PLAYER_FRAME_STRIDE` values per player in
+   * `snapshot.players` order, then the ball at `ballFrameOffset(players.length)`. Markers and the
+   * ball follow it on the UI thread without re-renders.
    */
   playerFrame?: SharedValue<readonly number[]>;
+  /** Fading streak behind a fast ball. */
+  showBallTrail?: boolean;
   style?: StyleProp<ViewStyle>;
 }
 
@@ -59,6 +62,7 @@ export function MatchView({
   renderUnderlay,
   renderOverlay,
   playerFrame,
+  showBallTrail = true,
   style,
 }: MatchViewProps) {
   const [hasLayout, setHasLayout] = useState(false);
@@ -118,7 +122,13 @@ export function MatchView({
                   />
                 );
               })}
-              <BallMarker ball={snapshot.ball} inverseScale={inverseScale} />
+              <BallMarker
+                ball={snapshot.ball}
+                inverseScale={inverseScale}
+                frame={playerFrame}
+                frameOffset={ballFrameOffset(snapshot.players.length)}
+                showTrail={showBallTrail}
+              />
               {renderOverlay?.(layerContext)}
             </Group>
           </Canvas>

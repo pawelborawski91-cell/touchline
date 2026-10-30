@@ -15,6 +15,7 @@ interface PackageManifest {
 const PACKAGE_DIRS = {
   '@touchline/shared': 'packages/shared',
   '@touchline/physics': 'packages/physics',
+  '@touchline/ball-engine': 'packages/ball-engine',
   '@touchline/match-engine': 'packages/match-engine',
   '@touchline/planning': 'packages/planning',
   '@touchline/renderer': 'packages/renderer',
@@ -26,12 +27,14 @@ type PackageName = keyof typeof PACKAGE_DIRS;
 const ALLOWED_WORKSPACE_DEPS: Record<PackageName, readonly PackageName[]> = {
   '@touchline/shared': [],
   '@touchline/physics': ['@touchline/shared'],
-  '@touchline/match-engine': ['@touchline/shared', '@touchline/physics'],
+  '@touchline/ball-engine': ['@touchline/shared'],
+  '@touchline/match-engine': ['@touchline/shared', '@touchline/physics', '@touchline/ball-engine'],
   '@touchline/planning': ['@touchline/shared'],
   '@touchline/renderer': ['@touchline/shared'],
   '@touchline/mobile': [
     '@touchline/shared',
     '@touchline/physics',
+    '@touchline/ball-engine',
     '@touchline/match-engine',
     '@touchline/planning',
     '@touchline/renderer',
@@ -68,6 +71,7 @@ describe('workspace', () => {
     const modules = await Promise.all([
       import('@touchline/shared'),
       import('@touchline/physics'),
+      import('@touchline/ball-engine'),
       import('@touchline/match-engine'),
       import('@touchline/planning'),
       import('@touchline/renderer/core'),
@@ -86,6 +90,7 @@ describe('workspace', () => {
   it.each([
     '@touchline/shared',
     '@touchline/physics',
+    '@touchline/ball-engine',
     '@touchline/match-engine',
     '@touchline/planning',
   ] as const)('%s has no React Native, Expo, Skia, Zustand or UI dependencies', (name) => {

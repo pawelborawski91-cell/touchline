@@ -1,6 +1,7 @@
 import { resolvePinchStart } from '@touchline/planning';
 import type { CameraController } from '@touchline/renderer';
 import type { MatchSnapshot, Vector2 } from '@touchline/shared';
+import type { RefObject } from 'react';
 import {
   usePanGesture,
   usePinchGesture,
@@ -9,14 +10,15 @@ import {
 } from 'react-native-gesture-handler';
 
 import { usePathDrawing } from './usePathDrawing';
-import { usePlayerSelection } from './usePlayerSelection';
+import { usePlayerSelection, type TapInterceptor } from './usePlayerSelection';
 
 /**
  * Single gesture tree for the match view. All recognisers run simultaneously and arbitrate
  * through shared state instead of gesture-handler relations:
  *
  * 1. Pinch zooms, unless a stroke is already being drawn (then the camera stays locked).
- * 2. Single tap selects the closest marker or deselects (JS thread, never during a stroke).
+ * 2. Single tap selects the closest marker or deselects (JS thread, never during a stroke),
+ *    unless `interceptTap` consumes it (kick aiming).
  * 3. A one-finger drag that lands on the selected player draws a path.
  * 4. Any other one-finger drag pans the camera.
  *
@@ -28,11 +30,12 @@ export function usePlanningGestures(
   camera: CameraController,
   drawAnchor: Vector2 | null,
   selectionEnabled: boolean,
+  interceptTap?: RefObject<TapInterceptor | null>,
 ) {
   const { handlers } = camera;
   const drawing = usePathDrawing(camera, drawAnchor);
   const { dragIntent, strokeStarted } = drawing;
-  const handleTap = usePlayerSelection(snapshot, camera, selectionEnabled);
+  const handleTap = usePlayerSelection(snapshot, camera, selectionEnabled, interceptTap);
 
   const pan = usePanGesture({
     onBegin: (event) => {

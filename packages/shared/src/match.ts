@@ -1,5 +1,5 @@
+import type { BallState } from './ball';
 import { FIELD_LENGTH, FIELD_WIDTH } from './field';
-import type { Vector3 } from './math';
 import type { PlayerState } from './player';
 
 export type MatchPhase = 'planning' | 'execution' | 'stoppage' | 'finished';
@@ -38,12 +38,6 @@ export interface TeamInfo {
 
 export interface MatchPlayer extends PlayerState {
   shirtNumber: number;
-}
-
-export interface BallState {
-  /** World position in metres; z is height above the pitch. */
-  position: Vector3;
-  velocity: Vector3;
 }
 
 export interface MatchScore {

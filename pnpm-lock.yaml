@@ -11,6 +11,9 @@ importers:
       '@eslint/js':
         specifier: ^10.0.1
         version: 10.0.1(eslint@10.13.0)
+      '@touchline/ball-engine':
+        specifier: workspace:*
+        version: link:packages/ball-engine
       '@touchline/match-engine':
         specifier: workspace:*
         version: link:packages/match-engine
@@ -103,8 +106,21 @@ importers:
         specifier: ~6.0.3
         version: 6.0.3
 
+  packages/ball-engine:
+    dependencies:
+      '@touchline/shared':
+        specifier: workspace:*
+        version: link:../shared
+    devDependencies:
+      typescript:
+        specifier: ~6.0.3
+        version: 6.0.3
+
   packages/match-engine:
     dependencies:
+      '@touchline/ball-engine':
+        specifier: workspace:*
+        version: link:../ball-engine
       '@touchline/physics':
         specifier: workspace:*
         version: link:../physics
@@ -4137,9 +4153,7 @@ snapshots:
       metro-runtime: 0.87.1
     transitivePeerDependencies:
       - '@babel/core'
-      - bufferutil
       - supports-color
-      - utf-8-validate
 
   '@react-native/normalize-colors@0.88.0': {}
 

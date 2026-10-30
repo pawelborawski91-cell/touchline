@@ -4,7 +4,7 @@ import {
   type EngineView,
   type TurnSnapshot,
 } from '@touchline/match-engine';
-import { createInitialMatch } from '@touchline/shared';
+import { createInitialMatch, type Vector3 } from '@touchline/shared';
 import { useEffect, useMemo, useRef, useSyncExternalStore } from 'react';
 import { AppState } from 'react-native';
 import { useSharedValue, type SharedValue } from 'react-native-reanimated';
@@ -13,7 +13,7 @@ export interface MatchEngineHandle {
   engine: MatchEngine;
   /** Low-frequency engine view: plan, phase, turn, suspension. */
   view: EngineView;
-  /** Interpolated player frame (`PLAYER_FRAME_STRIDE` values per player), written every frame. */
+  /** Interpolated frame (players, then the ball at `ballFrameOffset`), written every frame. */
   playerFrame: SharedValue<readonly number[]>;
 }
 
@@ -67,6 +67,19 @@ export function useMatchEngine(): MatchEngineHandle {
 /** Turn timing, re-rendering once per simulated tick (the countdown follows simulation time). */
 export function useTurnSnapshot(engine: MatchEngine): TurnSnapshot {
   return useSyncExternalStore(engine.subscribeTicks, engine.getTurnSnapshot);
+}
+
+/** Free-flight ball prediction for the debug visualisation, refreshed every tick while enabled. */
+export function useBallTrajectory(
+  engine: MatchEngine,
+  view: EngineView,
+  enabled: boolean,
+): Vector3[] | null {
+  const turn = useTurnSnapshot(engine);
+  return useMemo(
+    () => (enabled ? engine.predictBallTrajectory(3) : null),
+    [enabled, engine, turn, view],
+  );
 }
 
 /** Engine debug readout, refreshed with every simulated tick and every view change. */

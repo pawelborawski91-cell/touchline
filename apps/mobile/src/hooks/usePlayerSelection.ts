@@ -1,6 +1,6 @@
 import { findMarkerAt, type CameraController, type HitTarget } from '@touchline/renderer';
 import type { MatchSnapshot } from '@touchline/shared';
-import { useCallback, useMemo } from 'react';
+import { useCallback, useMemo, type RefObject } from 'react';
 
 import { usePlanningStore } from '../stores/planningStore';
 
@@ -9,10 +9,14 @@ import { usePlanningStore } from '../stores/planningStore';
  * hit-tests markers in screen space (closest wins), and feeds the planning reducer, which
  * ignores taps while a path is being drawn or previewed. Disabled outside the planning phase.
  */
+/** Optional tap interceptor (e.g. kick aiming); returns true when it consumed the tap. */
+export type TapInterceptor = (x: number, y: number) => boolean;
+
 export function usePlayerSelection(
   snapshot: MatchSnapshot,
   camera: CameraController,
   enabled: boolean,
+  interceptTap?: RefObject<TapInterceptor | null>,
 ) {
   const dispatch = usePlanningStore((state) => state.dispatch);
   const targets = useMemo<HitTarget[]>(
@@ -23,9 +27,10 @@ export function usePlayerSelection(
   return useCallback(
     (x: number, y: number) => {
       if (!enabled) return;
+      if (interceptTap?.current?.(x, y)) return;
       const playerId = findMarkerAt(targets, { x, y }, camera.transform.value);
       dispatch(playerId ? { type: 'tapPlayer', playerId } : { type: 'tapEmpty' });
     },
-    [camera.transform, dispatch, enabled, targets],
+    [camera.transform, dispatch, enabled, interceptTap, targets],
   );
 }
