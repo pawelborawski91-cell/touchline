@@ -11,6 +11,7 @@ export {
   type CameraController,
   type CameraGestureHandlers,
 } from './camera/CameraController';
+export { AIDebugLayer } from './components/AIDebugLayer';
 export { BallDebugLayer, type BallContactRadii } from './components/BallDebugLayer';
 export { BallMarker, BALL_MARKER_RADIUS } from './components/BallMarker';
 export { Goal, type GoalEnd } from './components/Goal';

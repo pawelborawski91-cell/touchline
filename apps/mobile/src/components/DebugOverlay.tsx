@@ -1,5 +1,6 @@
 import type {
   BallDebugInfo,
+  EngineAIDebugInfo,
   EngineView,
   MatchEngine,
   PlayerDebugInfo,
@@ -78,6 +79,40 @@ function BallLines({ ball }: { ball: BallDebugInfo }) {
   );
 }
 
+function AILines({
+  ai,
+  selectedPlayerId,
+}: {
+  ai: EngineAIDebugInfo;
+  selectedPlayerId: string | null;
+}) {
+  const teams = ai.teams
+    .map(
+      (team) =>
+        `${team.teamId} ${team.playState} ${team.formationId} · press ${short(team.presserId)}`,
+    )
+    .join(' | ');
+  const player = selectedPlayerId
+    ? ai.players.find((candidate) => candidate.playerId === selectedPlayerId)
+    : undefined;
+  const since = player ? ai.secondsSinceDecision[player.playerId] : null;
+  return (
+    <>
+      <Text style={[styles.line, styles.ai]}>
+        AI {ai.enabled ? 'on' : 'off'} · {teams}
+      </Text>
+      {player && (
+        <Text style={[styles.line, styles.ai]}>
+          ◆ {player.role} {player.controlMode} · {player.behaviorId ?? 'idle'}
+          {player.utility !== null ? ` u${player.utility.toFixed(2)}` : ''}
+          {player.target ? ` → ${player.target.x.toFixed(1)} ${player.target.y.toFixed(1)}` : ''}
+          {since !== null && since !== undefined ? ` · ${since.toFixed(2)} s ago` : ''}
+        </Text>
+      )}
+    </>
+  );
+}
+
 /** Developer readout of the simulation: turn, phase, tick, command counts and movement state. */
 export function DebugOverlay({ engine, view, selectedPlayerId }: DebugOverlayProps) {
   const info = useEngineDebug(engine, view, selectedPlayerId);
@@ -98,6 +133,7 @@ export function DebugOverlay({ engine, view, selectedPlayerId }: DebugOverlayPro
         {counts.completed} · cancelled {counts.cancelled + counts.interrupted}
       </Text>
       <BallLines ball={info.ball} />
+      <AILines ai={info.ai} selectedPlayerId={selectedPlayerId} />
       {selected && (
         <Text style={[styles.line, styles.selected]}>
           ▶ #{selected.shirtNumber} {selected.role} {selected.speed.toFixed(2)} m/s ·{' '}
@@ -143,5 +179,8 @@ const styles = StyleSheet.create({
   },
   ball: {
     color: '#FFD166',
+  },
+  ai: {
+    color: '#C8F560',
   },
 });

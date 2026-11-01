@@ -4,10 +4,14 @@ import {
   planMovement,
   stepExecution,
   type SimulationState,
+  MANUAL_ONLY_SIMULATION_CONFIG,
 } from '@touchline/match-engine';
 import { getSpeedCap } from '@touchline/physics';
 import { createInitialMatch, type MovementMode, type Vector2 } from '@touchline/shared';
 import { describe, expect, it } from 'vitest';
+
+// Movement and command physics in isolation: uncommanded players stand still.
+const config = MANUAL_ONLY_SIMULATION_CONFIG;
 
 const DT = 0.05;
 
@@ -37,9 +41,9 @@ function execute(playerId: string, waypoints: Vector2[], mode: MovementMode): Tr
     cap,
   };
   for (let turn = 0; turn < 3 && trace.completedAtTick === null; turn += 1) {
-    state = commitPlans(state);
+    state = commitPlans(state, config);
     while (state.phase === 'execution') {
-      state = stepExecution(state);
+      state = stepExecution(state, config);
       const p = state.players.find((x) => x.id === playerId)!;
       trace.positions.push(p.position);
       trace.speeds.push(Math.hypot(p.velocity.x, p.velocity.y));

@@ -5,13 +5,18 @@ Both sides plan at the same time, then the plans play out in continuous simulati
 105 × 68 m pitch. The match engine is plain TypeScript and does not depend on the mobile UI.
 Rendering uses React Native Skia.
 
-**Status: Sprint 5, ball physics and possession.** The app opens a landscape match view: a
+**Status: Sprint 6, player AI and autonomous team behavior.** The app opens a landscape match view: a
 105 × 68 m Skia pitch with both 4-3-3 line-ups (NORTH CITY vs SOUTH UNITED) under a touch camera.
 The match runs as a repeating cycle of planning, commit and 5 s of execution, with players moving
 under acceleration, turning, braking and momentum, and runs carrying over between turns. The ball
 is an independent 3D body: it rolls, flies, bounces and settles; players control it on contact,
-dribble it with repeated touches, challenge for it and kick it (pass, shot, clearance, lob). There
-is no goal detection, restart, opponent AI or networking yet.
+dribble it with repeated touches, challenge for it and kick it (pass, shot, clearance, lob).
+Every player without a command of yours plays on his own: both teams keep a formation (4-3-3 by
+default) that shifts with the ball, press the ball carrier with one player, mark one-to-one,
+support and make runs in possession, react to turnovers, and the keepers guard their goals. A
+command you give always wins; when it finishes, the player rejoins the team's play without
+stopping. The AI moves players only through the same movement physics, and passing and shooting
+stay your decisions. There is no goal detection, restart or networking yet.
 
 On the match view:
 
@@ -37,7 +42,12 @@ On the match view:
 - **DBG** (top right) toggles a debug overlay (turn, phase, tick, command counts, the selected
   player's waypoint and progress, ball position, velocity, height, possession, last touch and
   recent ball events) and shows cancelled routes. **VIZ** draws the ball's velocity vector, its
-  predicted free-flight trajectory and the players' reach and body circles.
+  predicted free-flight trajectory and the players' reach and body circles. **AI** draws each
+  team's shape (width × depth box, defensive line, formation anchors), every autonomous player's
+  intent arrow and behavior label (`USER` while under your command), the presser → carrier
+  arrows and dashed marking lines. With DBG on, the overlay also lists both teams' play states
+  and the selected player's control mode, behavior, utility, target and time since his last
+  decision.
 
 - [Game design](docs/GDD.md)
 - [Architecture & package boundaries](docs/ARCHITECTURE.md)
@@ -50,6 +60,7 @@ apps/mobile            Expo app (@touchline/mobile)
 packages/shared        Domain types and utilities (@touchline/shared)
 packages/physics       Player movement physics, rendering-independent (@touchline/physics)
 packages/ball-engine   Ball physics, contact and possession (@touchline/ball-engine)
+packages/player-ai     Autonomous player and team AI, no UI deps (@touchline/player-ai)
 packages/match-engine  Authoritative simulation, no UI deps (@touchline/match-engine)
 packages/planning      Commands and trajectories (@touchline/planning)
 packages/renderer      Skia rendering of snapshots (@touchline/renderer)

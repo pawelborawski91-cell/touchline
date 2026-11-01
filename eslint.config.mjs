@@ -31,6 +31,7 @@ const RENDERER_WORKSPACE_IMPORTS = workspaceImports(
     '@touchline/match-engine',
     '@touchline/physics',
     '@touchline/ball-engine',
+    '@touchline/player-ai',
     '@touchline/planning',
     '@touchline/mobile',
   ],
@@ -85,6 +86,7 @@ export default defineConfig(
               [
                 '@touchline/match-engine',
                 '@touchline/ball-engine',
+                '@touchline/player-ai',
                 '@touchline/planning',
                 '@touchline/renderer',
                 '@touchline/mobile',
@@ -108,6 +110,7 @@ export default defineConfig(
               [
                 '@touchline/physics',
                 '@touchline/match-engine',
+                '@touchline/player-ai',
                 '@touchline/planning',
                 '@touchline/renderer',
                 '@touchline/mobile',
@@ -129,7 +132,30 @@ export default defineConfig(
             ...UI_AND_PLATFORM_IMPORTS,
             ...workspaceImports(
               ['@touchline/planning', '@touchline/renderer', '@touchline/mobile'],
-              '@touchline/match-engine may only depend on @touchline/shared, @touchline/physics and @touchline/ball-engine.',
+              '@touchline/match-engine may only depend on @touchline/shared, @touchline/physics, @touchline/ball-engine and @touchline/player-ai.',
+            ),
+          ],
+        },
+      ],
+    },
+  },
+  {
+    files: ['packages/player-ai/**/*.ts'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            ...UI_AND_PLATFORM_IMPORTS,
+            ...workspaceImports(
+              [
+                '@touchline/physics',
+                '@touchline/match-engine',
+                '@touchline/planning',
+                '@touchline/renderer',
+                '@touchline/mobile',
+              ],
+              '@touchline/player-ai may only depend on @touchline/shared and @touchline/ball-engine; the match engine executes its intents.',
             ),
           ],
         },
@@ -149,6 +175,7 @@ export default defineConfig(
                 '@touchline/physics',
                 '@touchline/ball-engine',
                 '@touchline/match-engine',
+                '@touchline/player-ai',
                 '@touchline/renderer',
                 '@touchline/mobile',
               ],
@@ -180,6 +207,7 @@ export default defineConfig(
   {
     files: [
       'packages/renderer/src/core.ts',
+      'packages/renderer/src/ai/**/*.ts',
       'packages/renderer/src/ball/**/*.ts',
       'packages/renderer/src/camera/cameraTransforms.ts',
       'packages/renderer/src/coordinates/**/*.ts',

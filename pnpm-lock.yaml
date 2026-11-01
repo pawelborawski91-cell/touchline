@@ -23,6 +23,9 @@ importers:
       '@touchline/planning':
         specifier: workspace:*
         version: link:packages/planning
+      '@touchline/player-ai':
+        specifier: workspace:*
+        version: link:packages/player-ai
       '@touchline/renderer':
         specifier: workspace:*
         version: link:packages/renderer
@@ -124,6 +127,9 @@ importers:
       '@touchline/physics':
         specifier: workspace:*
         version: link:../physics
+      '@touchline/player-ai':
+        specifier: workspace:*
+        version: link:../player-ai
       '@touchline/shared':
         specifier: workspace:*
         version: link:../shared
@@ -144,6 +150,19 @@ importers:
 
   packages/planning:
     dependencies:
+      '@touchline/shared':
+        specifier: workspace:*
+        version: link:../shared
+    devDependencies:
+      typescript:
+        specifier: ~6.0.3
+        version: 6.0.3
+
+  packages/player-ai:
+    dependencies:
+      '@touchline/ball-engine':
+        specifier: workspace:*
+        version: link:../ball-engine
       '@touchline/shared':
         specifier: workspace:*
         version: link:../shared

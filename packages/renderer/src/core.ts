@@ -45,3 +45,11 @@ export {
   projectBall,
   readBallFrame,
 } from './ball/ballProjection';
+export type {
+  AIDebugPlayerScene,
+  AIDebugScene,
+  AIDebugSource,
+  AIDebugTeamScene,
+  FrameLink,
+} from './ai/aiDebugScene';
+export { arrowHead, buildAIDebugScene, dashSegments } from './ai/aiDebugScene';
