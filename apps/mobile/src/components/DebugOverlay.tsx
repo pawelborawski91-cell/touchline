@@ -103,9 +103,14 @@ function AILines({
       </Text>
       {player && (
         <Text style={[styles.line, styles.ai]}>
-          ◆ {player.role} {player.controlMode} · {player.behaviorId ?? 'idle'}
-          {player.utility !== null ? ` u${player.utility.toFixed(2)}` : ''}
-          {player.target ? ` → ${player.target.x.toFixed(1)} ${player.target.y.toFixed(1)}` : ''}
+          ◆ {player.role} {player.controlMode} ·{' '}
+          {player.controlMode === 'autonomous'
+            ? `${player.behaviorId ?? 'idle'}${player.utility !== null ? ` u${player.utility.toFixed(2)}` : ''}${
+                player.target
+                  ? ` → ${player.target.x.toFixed(1)} ${player.target.y.toFixed(1)}`
+                  : ''
+              }`
+            : `last ${player.behaviorId ?? 'none'}`}
           {since !== null && since !== undefined ? ` · ${since.toFixed(2)} s ago` : ''}
         </Text>
       )}

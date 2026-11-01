@@ -403,7 +403,7 @@ function TurnSummary({ book, turn }: { book: CommandBook; turn: number }) {
   return <Text style={styles.summary}>{parts.join(' · ')}</Text>;
 }
 
-/** Header with the turn, phase, match clock and plan counts; re-renders once per tick. */
+/** Header with the turn, phase, match clock and overlay toggles; re-renders once per tick. */
 function LiveInfoBar({
   engine,
   view,
@@ -424,7 +424,6 @@ function LiveInfoBar({
   onToggleAI: () => void;
 }) {
   const turn = useTurnSnapshot(engine);
-  const counts = countCommandsByStatus(view.commands);
   const phaseTone =
     view.phase === 'planning'
       ? colors.path
@@ -445,9 +444,6 @@ function LiveInfoBar({
       }
       accessory={
         <View style={styles.accessoryRow}>
-          <Text style={styles.counts}>
-            {counts.active} active · {counts.queued} queued
-          </Text>
           <Pressable
             accessibilityRole="button"
             accessibilityLabel="Toggle debug overlay"
@@ -559,12 +555,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
-  },
-  counts: {
-    color: colors.textMuted,
-    fontSize: 11,
-    fontWeight: '700',
-    fontVariant: ['tabular-nums'],
   },
   debugToggle: {
     paddingHorizontal: 8,
