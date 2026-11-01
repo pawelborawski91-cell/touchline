@@ -8,6 +8,7 @@ import {
   simulateTurn,
   stepExecution,
   type SimulationState,
+  MANUAL_ONLY_SIMULATION_CONFIG,
 } from '@touchline/match-engine';
 import {
   createInitialMatch,
@@ -17,6 +18,9 @@ import {
   type Vector2,
 } from '@touchline/shared';
 import { describe, expect, it } from 'vitest';
+
+// Movement and command physics in isolation: uncommanded players stand still.
+const config = MANUAL_ONLY_SIMULATION_CONFIG;
 
 const ST = 'north-city-9';
 const DT = 0.05;
@@ -66,7 +70,7 @@ describe('mandatory scenario: a 30 m command across turn boundaries', () => {
     expect(pathLength(commandOf(initial, commandId).path)).toBeCloseTo(30, 0);
 
     // 3–4. Commit and execute one five-second turn.
-    const afterTurn1 = simulateTurn(initial);
+    const afterTurn1 = simulateTurn(initial, config);
     const p1 = playerOf(afterTurn1);
     const path1 = afterTurn1.pathStates[commandId]!;
 
@@ -92,13 +96,13 @@ describe('mandatory scenario: a 30 m command across turn boundaries', () => {
     expect(afterTurn1).toMatchObject({ phase: 'planning', turn: 2, tick: 100 });
 
     // 9. Commit the next turn: execution resumes from the exact same state.
-    const resumed = commitPlans(afterTurn1);
+    const resumed = commitPlans(afterTurn1, config);
     expect(playerOf(resumed)).toEqual(p1);
     expect(resumed.pathStates[commandId]).toEqual(path1);
     expect(commandOf(resumed, commandId).path).toEqual(commandOf(afterTurn1, commandId).path);
 
     // 10. The first tick continues along the remaining path: no restart, no teleport.
-    const firstTick = stepExecution(resumed);
+    const firstTick = stepExecution(resumed, config);
     const p2 = playerOf(firstTick);
     const step = Math.hypot(p2.position.x - p1.position.x, p2.position.y - p1.position.y);
     expect(step).toBeGreaterThan(0);
@@ -112,7 +116,7 @@ describe('mandatory scenario: a 30 m command across turn boundaries', () => {
 
     // 11. It eventually completes, at the end of the path.
     let state = firstTick;
-    while (state.phase === 'execution') state = stepExecution(state);
+    while (state.phase === 'execution') state = stepExecution(state, config);
     expect(commandOf(state, commandId)).toMatchObject({ status: 'completed', endedTurn: 2 });
     const final = playerOf(state);
     expect(Math.hypot(final.position.x - end.x, final.position.y - end.y)).toBeLessThanOrEqual(
@@ -126,13 +130,13 @@ describe('mandatory scenario: a 30 m command across turn boundaries', () => {
 describe('persistence across turn boundaries', () => {
   it('preserves position, velocity, facing, stamina, waypoint and progress exactly', () => {
     const { state: initial, commandId } = planned('sprint');
-    let state = commitPlans(initial);
-    for (let i = 0; i < 99; i += 1) state = stepExecution(state);
-    const last = stepExecution(state);
+    let state = commitPlans(initial, config);
+    for (let i = 0; i < 99; i += 1) state = stepExecution(state, config);
+    const last = stepExecution(state, config);
     expect(last.phase).toBe('planning');
     // The boundary tick moves players like any other tick; then nothing is reset.
     const atBoundary = playerOf(last);
-    const recommitted = commitPlans(last);
+    const recommitted = commitPlans(last, config);
     expect(playerOf(recommitted)).toEqual(atBoundary);
     expect(recommitted.pathStates[commandId]).toEqual(last.pathStates[commandId]);
     expect(atBoundary.position).not.toEqual(playerOf(initial).position);
@@ -140,12 +144,12 @@ describe('persistence across turn boundaries', () => {
 
   it('never processes a waypoint twice: indices and distance only increase', () => {
     const { state: initial, commandId } = planned('sprint');
-    let state = commitPlans(initial);
+    let state = commitPlans(initial, config);
     let index = 1;
     let distance = 0;
     for (let turn = 0; turn < 3; turn += 1) {
       while (state.phase === 'execution' && commandOf(state, commandId).status === 'active') {
-        state = stepExecution(state);
+        state = stepExecution(state, config);
         const progress = state.pathStates[commandId]!;
         expect(progress.currentWaypointIndex).toBeGreaterThanOrEqual(index);
         expect(progress.distanceAlongPath).toBeGreaterThanOrEqual(distance - 1e-12);
@@ -153,7 +157,7 @@ describe('persistence across turn boundaries', () => {
         distance = progress.distanceAlongPath;
       }
       if (commandOf(state, commandId).status !== 'active') break;
-      if (state.phase === 'planning') state = commitPlans(state);
+      if (state.phase === 'planning') state = commitPlans(state, config);
     }
     expect(commandOf(state, commandId).status).toBe('completed');
   });
@@ -166,7 +170,7 @@ describe('persistence across turn boundaries', () => {
       { x: 20, y: 30 },
     ]);
     expect(commandOf(queuedOnly.state, queuedOnly.command.id).status).toBe('queued');
-    const executing = commitPlans(queuedOnly.state);
+    const executing = commitPlans(queuedOnly.state, config);
     expect(commandOf(executing, queuedOnly.command.id).status).toBe('active');
     expect(commandOf(executing, commandId).status).toBe('active');
   });
@@ -175,25 +179,25 @@ describe('persistence across turn boundaries', () => {
     const state = createSimulationState(createInitialMatch());
     const start = playerOf(state).position;
     const short = planMovement(state, ST, [start, { x: start.x + 4, y: start.y }]);
-    const turn1 = simulateTurn(short.state);
+    const turn1 = simulateTurn(short.state, config);
     expect(commandOf(turn1, short.command.id).status).toBe('completed');
     const restingAt = playerOf(turn1).position;
     // Still inspectable during the next planning phase.
     expect(turn1.commands.commands).toHaveLength(1);
-    const turn2 = simulateTurn(turn1);
+    const turn2 = simulateTurn(turn1, config);
     expect(playerOf(turn2).position).toEqual(restingAt);
     expect(getCommand(turn2.commands, short.command.id)).toBeUndefined();
   });
 
   it('never resumes a cancelled command; the player brakes naturally instead', () => {
     const { state: initial, commandId } = planned('sprint');
-    const turn1 = simulateTurn(initial);
+    const turn1 = simulateTurn(initial, config);
     const moving = playerOf(turn1);
     const cancelled = cancelPlannedCommand(turn1, commandId);
     expect(commandOf(cancelled, commandId)).toMatchObject({ status: 'cancelled', endedTurn: 2 });
     expect(playerOf(cancelled).activeCommandId).toBeNull();
     expect(playerOf(cancelled).velocity).toEqual(moving.velocity);
-    const turn2 = simulateTurn(cancelled);
+    const turn2 = simulateTurn(cancelled, config);
     expect(commandOf(turn2, commandId).status).toBe('cancelled');
     expect(speedOf(playerOf(turn2))).toBe(0);
     expect(() => cancelPlannedCommand(turn2, commandId)).toThrow(/cancelled to cancelled/);
@@ -214,7 +218,7 @@ describe('replacement', () => {
 
   it('replaces an active command during planning from the actual position, keeping momentum', () => {
     const { state: initial, commandId } = planned('sprint');
-    const turn1 = simulateTurn(initial);
+    const turn1 = simulateTurn(initial, config);
     const before = playerOf(turn1);
     // The UI draws from the player's live position; any stale start point is re-anchored.
     const replacement = replaceCommand(turn1, commandId, [
@@ -230,13 +234,13 @@ describe('replacement', () => {
       0,
     );
 
-    const executing = commitPlans(replacement.state);
+    const executing = commitPlans(replacement.state, config);
     const started = commandOf(executing, replacement.command.id);
     expect(started.status).toBe('active');
     expect(started.path[0]).toEqual(before.position);
     expect(playerOf(executing).velocity).toEqual(before.velocity);
 
-    const next = stepExecution(executing);
+    const next = stepExecution(executing, config);
     const step = Math.hypot(
       playerOf(next).position.x - before.position.x,
       playerOf(next).position.y - before.position.y,
@@ -247,7 +251,7 @@ describe('replacement', () => {
   });
 
   it('works through the engine API and keeps ids unique', () => {
-    const engine = new MatchEngine(createInitialMatch());
+    const engine = new MatchEngine(createInitialMatch(), { config });
     const start = engine.getState().players.find((p) => p.id === ST)!.position;
     const first = engine.planMovement(ST, thirtyMetres(start), { movementMode: 'sprint' });
     engine.commitPlans();
@@ -267,8 +271,8 @@ describe('replacement', () => {
 describe('planning freeze', () => {
   it('changes nothing about players or time while planning, however long it lasts', () => {
     const { state: initial, commandId } = planned('sprint');
-    const turn1 = simulateTurn(initial);
-    const engine = new MatchEngine(createInitialMatch());
+    const turn1 = simulateTurn(initial, config);
+    const engine = new MatchEngine(createInitialMatch(), { config });
     // Drive an engine to the same point through real frames.
     const start = engine.getState().players.find((p) => p.id === ST)!.position;
     engine.planMovement(ST, thirtyMetres(start), { movementMode: 'sprint' });
@@ -291,7 +295,7 @@ describe('planning freeze', () => {
 
   it('plan edits during planning never move players', () => {
     const { state: initial, commandId } = planned();
-    const turn1 = simulateTurn(initial);
+    const turn1 = simulateTurn(initial, config);
     const edited = cancelPlannedCommand(
       planMovement(turn1, 'north-city-4', [
         playerOf(turn1, 'north-city-4').position,

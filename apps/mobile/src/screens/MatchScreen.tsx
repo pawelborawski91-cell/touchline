@@ -8,9 +8,11 @@ import {
   type CommandBook,
   type PlanningMode,
 } from '@touchline/planning';
-import type { EngineView, MatchEngine } from '@touchline/match-engine';
+import { BEHAVIOR_LABELS, type EngineView, type MatchEngine } from '@touchline/match-engine';
 import {
+  AIDebugLayer,
   BallDebugLayer,
+  buildAIDebugScene,
   MatchView,
   screenToWorld,
   useCameraController,
@@ -38,7 +40,12 @@ import {
 } from '../components/PlanningControls';
 import { PlanningLayer } from '../components/PlanningLayer';
 import { PlayerInfoPanel } from '../components/PlayerInfoPanel';
-import { useBallTrajectory, useMatchEngine, useTurnSnapshot } from '../hooks/useMatchEngine';
+import {
+  useAIDebug,
+  useBallTrajectory,
+  useMatchEngine,
+  useTurnSnapshot,
+} from '../hooks/useMatchEngine';
 import { usePlanningGestures } from '../hooks/usePlanningGestures';
 import type { TapInterceptor } from '../hooks/usePlayerSelection';
 import { usePlanningStore } from '../stores/planningStore';
@@ -66,6 +73,7 @@ export function MatchScreen() {
   const isPlanning = view.phase === 'planning';
   const [debugVisible, setDebugVisible] = useState(false);
   const [vizVisible, setVizVisible] = useState(false);
+  const [aiVisible, setAIVisible] = useState(false);
   const [engineNotice, setEngineNotice] = useState<string | null>(null);
   /** Kick type being aimed for the selected player (the next pitch tap sets the target). */
   const [kickAim, setKickAim] = useState<KickType | null>(null);
@@ -111,6 +119,11 @@ export function MatchScreen() {
     aimTap,
   );
   const trajectory = useBallTrajectory(engine, view, vizVisible);
+  const aiInfo = useAIDebug(engine, view, aiVisible);
+  const aiScene = useMemo(
+    () => (aiVisible && aiInfo ? buildAIDebugScene(aiInfo, frameIndexOf, BEHAVIOR_LABELS) : null),
+    [aiInfo, aiVisible, frameIndexOf],
+  );
 
   const selectedCommand = selectedPlayer ? getMovementCommand(book, selectedPlayer.id) : undefined;
   const displayedCommand =
@@ -259,19 +272,39 @@ export function MatchScreen() {
   );
   const playerCount = snapshot.players.length;
   const renderOverlay = useCallback(
-    (context: WorldLayerContext) =>
-      vizVisible ? (
-        <BallDebugLayer
-          frame={playerFrame}
-          frameOffset={ballFrameOffset(playerCount)}
-          playerCount={playerCount}
-          inverseScale={context.inverseScale}
-          ballRadius={ballConfig.radius}
-          trajectory={trajectory}
-          contact={contactRadii}
-        />
-      ) : null,
-    [ballConfig.radius, contactRadii, playerCount, playerFrame, trajectory, vizVisible],
+    (context: WorldLayerContext) => (
+      <>
+        {aiScene && (
+          <AIDebugLayer
+            scene={aiScene}
+            snapshot={snapshot}
+            frame={playerFrame}
+            inverseScale={context.inverseScale}
+          />
+        )}
+        {vizVisible && (
+          <BallDebugLayer
+            frame={playerFrame}
+            frameOffset={ballFrameOffset(playerCount)}
+            playerCount={playerCount}
+            inverseScale={context.inverseScale}
+            ballRadius={ballConfig.radius}
+            trajectory={trajectory}
+            contact={contactRadii}
+          />
+        )}
+      </>
+    ),
+    [
+      aiScene,
+      ballConfig.radius,
+      contactRadii,
+      playerCount,
+      playerFrame,
+      snapshot,
+      trajectory,
+      vizVisible,
+    ],
   );
 
   const hint =
@@ -294,6 +327,8 @@ export function MatchScreen() {
         onToggleDebug={() => setDebugVisible((visible) => !visible)}
         vizVisible={vizVisible}
         onToggleViz={() => setVizVisible((visible) => !visible)}
+        aiVisible={aiVisible}
+        onToggleAI={() => setAIVisible((visible) => !visible)}
       />
       <View style={styles.pitch}>
         <MatchView
@@ -368,7 +403,7 @@ function TurnSummary({ book, turn }: { book: CommandBook; turn: number }) {
   return <Text style={styles.summary}>{parts.join(' · ')}</Text>;
 }
 
-/** Header with the turn, phase, match clock and plan counts; re-renders once per tick. */
+/** Header with the turn, phase, match clock and overlay toggles; re-renders once per tick. */
 function LiveInfoBar({
   engine,
   view,
@@ -376,6 +411,8 @@ function LiveInfoBar({
   onToggleDebug,
   vizVisible,
   onToggleViz,
+  aiVisible,
+  onToggleAI,
 }: {
   engine: MatchEngine;
   view: EngineView;
@@ -383,9 +420,10 @@ function LiveInfoBar({
   onToggleDebug: () => void;
   vizVisible: boolean;
   onToggleViz: () => void;
+  aiVisible: boolean;
+  onToggleAI: () => void;
 }) {
   const turn = useTurnSnapshot(engine);
-  const counts = countCommandsByStatus(view.commands);
   const phaseTone =
     view.phase === 'planning'
       ? colors.path
@@ -406,9 +444,6 @@ function LiveInfoBar({
       }
       accessory={
         <View style={styles.accessoryRow}>
-          <Text style={styles.counts}>
-            {counts.active} active · {counts.queued} queued
-          </Text>
           <Pressable
             accessibilityRole="button"
             accessibilityLabel="Toggle debug overlay"
@@ -426,6 +461,15 @@ function LiveInfoBar({
             style={[styles.debugToggle, vizVisible && styles.debugToggleOn]}
           >
             <Text style={[styles.debugLabel, vizVisible && styles.debugLabelOn]}>VIZ</Text>
+          </Pressable>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Toggle AI visualisation"
+            onPress={onToggleAI}
+            hitSlop={8}
+            style={[styles.debugToggle, aiVisible && styles.debugToggleOn]}
+          >
+            <Text style={[styles.debugLabel, aiVisible && styles.debugLabelOn]}>AI</Text>
           </Pressable>
         </View>
       }
@@ -511,12 +555,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
-  },
-  counts: {
-    color: colors.textMuted,
-    fontSize: 11,
-    fontWeight: '700',
-    fontVariant: ['tabular-nums'],
   },
   debugToggle: {
     paddingHorizontal: 8,

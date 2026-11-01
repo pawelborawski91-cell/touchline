@@ -18,6 +18,7 @@ import {
   type Vector2,
 } from '@touchline/shared';
 
+import { advanceAI } from './AICoordinator';
 import { advanceBall } from './BallCoordinator';
 import { assertPhase, assertPhaseTransition, MatchStateError } from './MatchPhaseMachine';
 import {
@@ -288,8 +289,9 @@ export function stepExecution(
   config: SimulationConfig = DEFAULT_SIMULATION_CONFIG,
 ): SimulationState {
   assertPhase(state.phase, 'execution', 'advance the simulation');
-  const moved = stepPlayers(state, config);
-  const { state: stepped, events } = advanceBall(state, moved, config);
+  const decided = advanceAI(state, config);
+  const moved = stepPlayers(decided, config);
+  const { state: stepped, events } = advanceBall(decided, moved, config);
   const advanced = { ...stepped, tick: state.tick + 1, turnTick: state.turnTick + 1 };
   if (events.some((event) => event.type === 'out_of_play')) return callStoppage(advanced);
   return advanced.turnTick >= ticksPerTurn(config)

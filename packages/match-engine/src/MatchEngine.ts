@@ -8,6 +8,7 @@ import {
   type KickResult,
   type PossessionSnapshot,
 } from '@touchline/ball-engine';
+import { describeAI, type AIDebugInfo } from '@touchline/player-ai';
 import {
   countCommandsByStatus,
   getCommand,
@@ -25,6 +26,7 @@ import {
   type Vector3,
 } from '@touchline/shared';
 
+import { setPlayerActive } from './AICoordinator';
 import {
   cancelPlannedKick,
   kickBall,
@@ -108,6 +110,14 @@ export interface EngineDebugInfo {
   players: PlayerDebugInfo[];
   selected: PlayerDebugInfo | null;
   ball: BallDebugInfo;
+  /** Autonomous AI readout (play states, decisions, assignments); read-only. */
+  ai: EngineAIDebugInfo;
+}
+
+export interface EngineAIDebugInfo extends AIDebugInfo {
+  enabled: boolean;
+  /** Simulated seconds since each player's last decision, by player id. */
+  secondsSinceDecision: Readonly<Record<string, number | null>>;
 }
 
 /**
@@ -283,6 +293,27 @@ export class MatchEngine {
     );
   }
 
+  /**
+   * Takes a player out of normal behavior or brings him back (planning only). Reserved for
+   * future match events; an inactive player gets no AI intent.
+   */
+  setPlayerActive(playerId: string, active: boolean): void {
+    this.commit(setPlayerActive(this.current, playerId, active));
+  }
+
+  /** AI readout for debug views; building it never changes the simulation. */
+  getAIDebugInfo(): EngineAIDebugInfo {
+    const state = this.current;
+    const info = describeAI(state.ai);
+    const dt = this.config.match.fixedDeltaTime;
+    const secondsSinceDecision: Record<string, number | null> = {};
+    for (const player of info.players) {
+      secondsSinceDecision[player.playerId] =
+        player.decidedAtTick === null ? null : (state.tick - player.decidedAtTick) * dt;
+    }
+    return { ...info, enabled: this.config.ai.enabled, secondsSinceDecision };
+  }
+
   // ── Phase actions ─────────────────────────────────────────────────────────────────────────
 
   /** Validates and commits every team's plan and starts the execution window. */
@@ -351,6 +382,7 @@ export class MatchEngine {
         this.current.commands !== before.commands ||
         this.current.phase !== before.phase ||
         this.current.plannedKicks !== before.plannedKicks ||
+        this.current.ai.possession !== before.ai.possession ||
         ballViewChanged(before.ball.ball, this.current.ball.ball)
       ) {
         this.notify();
@@ -426,6 +458,7 @@ export class MatchEngine {
       players,
       selected: selectedPlayerId ? describe(selectedPlayerId) : null,
       ball: this.describeBall(),
+      ai: this.getAIDebugInfo(),
     };
   }
 

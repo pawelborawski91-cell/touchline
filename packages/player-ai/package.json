@@ -1,0 +1,22 @@
+{
+  "name": "@touchline/player-ai",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Deterministic utility AI for autonomous TOUCHLINE players: perception, team shape, roles and behaviors.",
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit -p ."
+  },
+  "dependencies": {
+    "@touchline/ball-engine": "workspace:*",
+    "@touchline/shared": "workspace:*"
+  },
+  "devDependencies": {
+    "typescript": "~6.0.3"
+  }
+}

@@ -2,7 +2,7 @@ import type { BallEvent } from '@touchline/ball-engine';
 import {
   commitPlans,
   createSimulationState,
-  DEFAULT_SIMULATION_CONFIG,
+  MANUAL_ONLY_SIMULATION_CONFIG,
   MatchEngine,
   placeBall,
   planKick,
@@ -21,7 +21,8 @@ import {
 } from '@touchline/shared';
 import { describe, expect, it } from 'vitest';
 
-const config = DEFAULT_SIMULATION_CONFIG;
+// Ball physics in isolation: uncommanded players stand still (the AI has its own suites).
+const config = MANUAL_ONLY_SIMULATION_CONFIG;
 const STRIKER = 'north-city-9';
 const WINGER = 'north-city-7';
 
@@ -147,7 +148,7 @@ describe('ball and the turn lifecycle', () => {
     let state = commitPlans(kickedState(), config);
     for (let i = 0; i < 10; i += 1) state = stepExecution(state, config);
     expect(state.ball.ball.position.z).toBeGreaterThan(1);
-    const engine = new MatchEngine(createInitialMatch());
+    const engine = new MatchEngine(createInitialMatch(), { config });
     engine.placeBall({ x: 29.6, y: 34 });
     engine.planKick({ playerId: 'north-city-6', type: 'lob', target: { x: 50, y: 34 } });
     engine.commitPlans();
@@ -196,7 +197,7 @@ describe('ball and the turn lifecycle', () => {
       type: 'out_of_play',
       lastTouchTeamId: 'north-city',
     });
-    const engine = new MatchEngine(createInitialMatch());
+    const engine = new MatchEngine(createInitialMatch(), { config });
     engine.placeBall({ x: 29.6, y: 34 });
     engine.planKick({
       playerId: 'north-city-6',
@@ -231,7 +232,7 @@ describe('ball and the turn lifecycle', () => {
 
   it('rejects ball orders in the wrong phase', () => {
     const planning = createSimulationState(createInitialMatch());
-    const engine = new MatchEngine(createInitialMatch());
+    const engine = new MatchEngine(createInitialMatch(), { config });
     expect(() =>
       engine.kick({
         playerId: 'north-city-6',

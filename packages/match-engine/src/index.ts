@@ -1,9 +1,11 @@
 /**
  * @touchline/match-engine — authoritative, deterministic match simulation.
  *
- * May depend only on @touchline/shared, @touchline/physics and @touchline/ball-engine. Must not import React, React
- * Native, Expo, Skia, Zustand, or any rendering/UI package.
+ * May depend only on @touchline/shared, @touchline/physics, @touchline/ball-engine and
+ * @touchline/player-ai. Must not import React, React Native, Expo, Skia, Zustand, or any
+ * rendering/UI package.
  */
+export { advanceAI, setPlayerActive } from './AICoordinator';
 export {
   advanceBall,
   cancelPlannedKick,
@@ -16,6 +18,7 @@ export {
 export {
   MatchEngine,
   type BallDebugInfo,
+  type EngineAIDebugInfo,
   type EngineDebugInfo,
   type EngineView,
   type MatchEngineOptions,
@@ -44,6 +47,7 @@ export {
   createSimulationState,
   DEFAULT_SIMULATION_CONFIG,
   DEFAULT_TURN_CONFIG,
+  MANUAL_ONLY_SIMULATION_CONFIG,
   RECENT_EVENT_LIMIT,
   ticksPerTurn,
   type PathExecutionState,
@@ -73,3 +77,12 @@ export {
   type PlanMovementResult,
   type TurnSnapshot,
 } from './TurnController';
+export {
+  BEHAVIOR_LABELS,
+  type AIPlayerDebug,
+  type AITeamDebug,
+  type BehaviorId,
+  type PlayerControlMode,
+  type PlayerRole,
+  type TeamPlayState,
+} from '@touchline/player-ai';

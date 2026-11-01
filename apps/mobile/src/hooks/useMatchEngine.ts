@@ -1,5 +1,6 @@
 import {
   MatchEngine,
+  type EngineAIDebugInfo,
   type EngineDebugInfo,
   type EngineView,
   type TurnSnapshot,
@@ -94,4 +95,14 @@ export function useEngineDebug(
     () => engine.getDebugInfo(selectedPlayerId),
     [engine, selectedPlayerId, turn, view],
   );
+}
+
+/** Player AI debug readout, refreshed every tick while enabled (null when disabled). */
+export function useAIDebug(
+  engine: MatchEngine,
+  view: EngineView,
+  enabled: boolean,
+): EngineAIDebugInfo | null {
+  const turn = useTurnSnapshot(engine);
+  return useMemo(() => (enabled ? engine.getAIDebugInfo() : null), [enabled, engine, turn, view]);
 }

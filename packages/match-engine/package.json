@@ -15,6 +15,7 @@
   "dependencies": {
     "@touchline/ball-engine": "workspace:*",
     "@touchline/physics": "workspace:*",
+    "@touchline/player-ai": "workspace:*",
     "@touchline/shared": "workspace:*"
   },
   "devDependencies": {

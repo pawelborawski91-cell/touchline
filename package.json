@@ -26,6 +26,7 @@
     "@touchline/match-engine": "workspace:*",
     "@touchline/physics": "workspace:*",
     "@touchline/planning": "workspace:*",
+    "@touchline/player-ai": "workspace:*",
     "@touchline/renderer": "workspace:*",
     "@touchline/shared": "workspace:*",
     "@types/node": "^26.6.5",

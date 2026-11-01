@@ -23,6 +23,12 @@ import {
   type PathFollowerConfig,
   type StaminaConfig,
 } from '@touchline/physics';
+import {
+  createAIState,
+  DEFAULT_AI_CONFIG,
+  type AIConfig,
+  type AIState,
+} from '@touchline/player-ai';
 
 /**
  * Path-following progress of one movement command. Stored in the simulation state (not in the
@@ -87,6 +93,11 @@ export interface SimulationState {
   /** Kick orders per player id. */
   readonly plannedKicks: Readonly<Record<string, PlannedKick>>;
   readonly recentEvents: readonly BallEvent[];
+  /**
+   * Autonomous player AI: team play states, decisions and movement intents. Frozen outside
+   * execution, so it carries over planning phases and turn boundaries untouched.
+   */
+  readonly ai: AIState;
   /** Static match context carried through unchanged (teams, score). */
   readonly context: Pick<MatchSnapshot, 'home' | 'away' | 'score'>;
 }
@@ -104,6 +115,7 @@ export interface SimulationConfig {
   follower: PathFollowerConfig;
   stamina: StaminaConfig;
   ball: BallConfig;
+  ai: AIConfig;
 }
 
 export const DEFAULT_SIMULATION_CONFIG: Readonly<SimulationConfig> = Object.freeze({
@@ -111,6 +123,16 @@ export const DEFAULT_SIMULATION_CONFIG: Readonly<SimulationConfig> = Object.free
   follower: DEFAULT_PATH_FOLLOWER_CONFIG,
   stamina: DEFAULT_STAMINA_CONFIG,
   ball: DEFAULT_BALL_CONFIG,
+  ai: DEFAULT_AI_CONFIG,
+});
+
+/**
+ * The simulation without autonomous AI: uncommanded players only brake. For tests and tools
+ * that exercise movement, commands or ball physics in isolation.
+ */
+export const MANUAL_ONLY_SIMULATION_CONFIG: Readonly<SimulationConfig> = Object.freeze({
+  ...DEFAULT_SIMULATION_CONFIG,
+  ai: Object.freeze({ ...DEFAULT_AI_CONFIG, enabled: false }),
 });
 
 /**
@@ -137,18 +159,19 @@ export function createSimulationState(
   snapshot: MatchSnapshot,
   commands: CommandBook = createCommandBook(),
 ): SimulationState {
+  const players = snapshot.players.map((player) => ({
+    ...player,
+    position: { ...player.position },
+    velocity: { ...player.velocity },
+    movement: { ...player.movement },
+    technical: { ...player.technical },
+  }));
   return {
     tick: 0,
     turn: 1,
     turnTick: 0,
     phase: 'planning',
-    players: snapshot.players.map((player) => ({
-      ...player,
-      position: { ...player.position },
-      velocity: { ...player.velocity },
-      movement: { ...player.movement },
-      technical: { ...player.technical },
-    })),
+    players,
     commands,
     pathStates: {},
     teamCommits: [snapshot.home.id, snapshot.away.id].map((teamId) => ({
@@ -158,6 +181,11 @@ export function createSimulationState(
     ball: createBallSimulationState(snapshot.ball),
     plannedKicks: {},
     recentEvents: [],
+    // Home attacks towards x = FIELD_LENGTH, away towards x = 0 (kickoff halves).
+    ai: createAIState(players, [
+      { teamId: snapshot.home.id, direction: 1 },
+      { teamId: snapshot.away.id, direction: -1 },
+    ]),
     context: {
       home: snapshot.home,
       away: snapshot.away,
