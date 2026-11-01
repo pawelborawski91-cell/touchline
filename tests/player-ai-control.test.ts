@@ -110,6 +110,16 @@ describe('AI and the turn cycle', () => {
       );
     }
   });
+
+  it('reports formation roles before the first execution tick', () => {
+    const info = new MatchEngine(createInitialMatch()).getAIDebugInfo();
+    const roleOf = (id: string) => info.players.find((p) => p.playerId === id)?.role;
+    expect(info.lastUpdateTick).toBeNull();
+    expect(roleOf('north-city-1')).toBe('GK');
+    expect(roleOf('north-city-5')).toBe('CB');
+    expect(roleOf('south-united-7')).toBe('WG');
+    expect(roleOf('south-united-9')).toBe('ST');
+  });
 });
 
 describe('roles', () => {

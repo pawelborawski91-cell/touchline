@@ -5,7 +5,12 @@ import {
   type PossessionMemory,
   type TeamAIState,
 } from '../perception/TeamPerception';
-import type { AttackDirection } from '../tactics/Formation';
+import {
+  type AttackDirection,
+  DEFAULT_FORMATION_ID,
+  FORMATIONS,
+  positionForSlot,
+} from '../tactics/Formation';
 import type { AIDecision, MovementIntent, PlayerControlMode, PlayerRole } from './AIDecision';
 
 /** Per-player AI memory, carried across ticks, planning phases and turns. */
@@ -57,12 +62,17 @@ export function createAIState(
   teamInfo: readonly AITeamInfo[],
 ): AIState {
   const memory: Record<string, PlayerAIState> = {};
+  const formation = FORMATIONS[DEFAULT_FORMATION_ID];
+  const teamIndex: Record<string, number> = {};
   for (const player of players) {
+    const index = teamIndex[player.teamId] ?? 0;
+    teamIndex[player.teamId] = index + 1;
     memory[player.id] = {
       playerId: player.id,
       teamId: player.teamId,
       slot: player.role,
-      role: 'CM',
+      // Provisional until the first update applies the team's configured formation.
+      role: positionForSlot(formation, player.role, index)?.role ?? 'CM',
       controlMode: player.activeCommandId ? 'manual' : 'autonomous',
       decision: null,
       intent: null,
